@@ -44,7 +44,7 @@ void TorqueFunction::updateb() // Ax + b = 0
   // mc_rtc::log::info("[TorqueFunction] value_ = tau: {} - tau_d: {} = {}", robot_.tvmRobot().tau()->value(), torque_,
   // (robot_.tvmRobot().tau()->value() - torque_));
   b_ = robot_.tvmRobot().C() - torque_;
-  if(compensateExternalForces_)
+  if(!compensateExternalForces_)
   {
     Eigen::VectorXd extForces = robot_.tvmRobot().tauExternal();
     if(robot_.mb().nrJoints() > 0 && robot_.mb().joint(0).type() == rbd::Joint::Free)
@@ -109,23 +109,6 @@ void TorqueFunction::torque(const std::vector<std::vector<double>> & tau)
   torque_mc_rtc_ = tau;
   mcrtcTorqueToEigen();
 }
-
-// void TorqueFunction::updateValue()
-// {
-//   // const auto & tau = robot_.tvmRobot().tau(); // this is a VariablePtr
-//   int pos = 0;
-//   for(int jI = j0_; jI < robot_.mb().nrJoints(); ++jI)
-//   {
-//     auto jIdx = static_cast<size_t>(jI);
-//     const auto & j = robot_.mb().joint(jI);
-//     if(j.dof() == 1) // prismatic or revolute
-//     {
-//       value_(pos) = robot_.mbc().jointTorque[jIdx][0] - torque_[jIdx][0];
-//       mc_rtc::log::info("[TorqueFunction] value_[{}] = tau: {} - tau_d: {} = {}", pos,
-//       robot_.mbc().jointTorque[jIdx][0], torque_[jIdx][0], value_(pos)); pos++;
-//     }
-//   }
-// }
 
 void TorqueFunction::eigenToMCrtcTorque()
 {
