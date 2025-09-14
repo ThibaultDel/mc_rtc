@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <mc_rtc/log/Logger.h>
 #include <mc_solver/ConstraintSet.h>
 
 #include <mc_rbdyn/Collision.h>
@@ -104,6 +105,8 @@ public:
    */
   inline void automaticMonitor(bool a) noexcept { autoMonitor_ = a; }
 
+  inline void logCollisions(bool a) noexcept { logCollisions_ = a; }
+
   void addToSolverImpl(QPSolver & solver) override;
 
   void update(QPSolver & solver) override;
@@ -140,11 +143,14 @@ private:
 
   /* Internal management for collision display */
   bool autoMonitor_ = true;
+  bool logCollisions_ = true;
   std::unordered_set<int> monitored_;
   std::shared_ptr<mc_rtc::gui::StateBuilder> gui_;
+  std::shared_ptr<mc_rtc::Logger> logger_;
   std::vector<std::string> category_;
   void addMonitorButton(int collId, const mc_rbdyn::Collision & col);
   void toggleCollisionMonitor(int collId, const mc_rbdyn::Collision * col = nullptr);
+  void addLogs(int collId, const mc_rbdyn::Collision & col);
 };
 
 } // namespace mc_solver
