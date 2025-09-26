@@ -16,7 +16,7 @@ namespace mc_tasks
 /** A torque task for a given robot
  *
  * Note that eval/speed/dimWeight have different dimensions based on the backend:
- * - in Tasks, this is robot.mb().nrParams()
+ * - in Tasks, this is robot.mb().nrParams(), TASKS BACKEND IS NOT SUPPORTED
  * - in TVM, this is robot.tvmRobot().qJoints().size()
  *
  */
@@ -119,7 +119,7 @@ private:
   /** Holds the constraint implementation
    *
    * In Tasks backend:
-   * - tasks::qp::TorqueTask
+   * - None
    *
    * In TVM backend:
    * - details::TVMTorqueTask

@@ -37,7 +37,7 @@ struct TVMTorqueTask : public TrajectoryTaskGeneric
     finalize<Backend::TVM, mc_tvm::TorqueFunction>(robots.robot(robotIndex), compensateExternalForces);
     type_ = "torque";
     name_ = std::string("torque_") + robots.robot(robotIndex).name();
-    isTorqueTask_ = true;
+    isNoneTaskDynamics_ = true;
   }
 
   void compensateExternalForces(bool compensate) { tvm_error(errorT)->compensateExternalForces(compensate); }

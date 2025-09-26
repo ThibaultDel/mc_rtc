@@ -121,9 +121,8 @@ void TrajectoryTaskGeneric::addToSolver(mc_solver::QPSolver & solver)
                                                       tvm::requirements::Weight(weight_),
                                                       tvm::requirements::AnisotropicWeight(trajectory->dimWeight_)};
           tvm::FunctionPtr error_ptr(&error, [](tvm::function::abstract::Function *) {});
-          if(isTorqueTask_)
+          if(isNoneTaskDynamics_)
           {
-            mc_rtc::log::info("[{}] Adding TorqueTask to TVM solver", name());
             trajectory->dynamicIsPD_ = false;
             trajectory->task_ = tvm_solver(solver).problem().add(error_ptr == 0., tvm::task_dynamics::None(), reqs);
           }
