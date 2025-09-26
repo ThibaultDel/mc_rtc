@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <mc_rtc/log/Logger.h>
 #include <mc_solver/ConstraintSet.h>
 
 #include <mc_rbdyn/Collision.h>
@@ -83,6 +84,10 @@ public:
    */
   void addCollisions(QPSolver & solver, const std::vector<mc_rbdyn::Collision> & cols);
 
+  void editCollisions(QPSolver & solver, const std::vector<mc_rbdyn::Collision> & cols);
+
+  void setCollisionsDampers(QPSolver & solver, const std::vector<double> & dampers);
+
   /** Returns true if the given collision is in this constraint */
   bool hasCollision(const std::string & c1, const std::string & c2) const noexcept;
 
@@ -99,6 +104,8 @@ public:
    * If false, monitors are managed by the user
    */
   inline void automaticMonitor(bool a) noexcept { autoMonitor_ = a; }
+
+  inline void logCollisions(bool a) noexcept { logCollisions_ = a; }
 
   void addToSolverImpl(QPSolver & solver) override;
 
@@ -132,14 +139,18 @@ private:
   std::pair<int, mc_rbdyn::Collision> __popCollId(const std::string & name1, const std::string & name2);
   /** Actually adds the collision to the constraint, handles id creation and wildcard support */
   void __addCollision(mc_solver::QPSolver & solver, const mc_rbdyn::Collision & col);
+  void __editCollision(mc_solver::QPSolver & solver, const mc_rbdyn::Collision & col);
 
   /* Internal management for collision display */
   bool autoMonitor_ = true;
+  bool logCollisions_ = true;
   std::unordered_set<int> monitored_;
   std::shared_ptr<mc_rtc::gui::StateBuilder> gui_;
+  std::shared_ptr<mc_rtc::Logger> logger_;
   std::vector<std::string> category_;
   void addMonitorButton(int collId, const mc_rbdyn::Collision & col);
   void toggleCollisionMonitor(int collId, const mc_rbdyn::Collision * col = nullptr);
+  void addLogs(int collId, const mc_rbdyn::Collision & col);
 };
 
 } // namespace mc_solver
