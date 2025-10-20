@@ -1,32 +1,28 @@
 /*
- * Copyright 2015-2019 CNRS-UM LIRMM, CNRS-AIST JRL
+ * Copyright 2015-2022 CNRS-UM LIRMM, CNRS-AIST JRL
  */
 
 #include <mc_tasks/ForceTask.h>
 
 #include <mc_tasks/MetaTaskLoader.h>
-#include <mc_tasks/TrajectoryTaskGeneric.h>
-
-#include <mc_solver/TVMQPSolver.h>
-// #include <mc_solver/TasksQPSolver.h>
-
 #include <mc_tvm/ForceFunction.h>
-#include <mc_tvm/Robot.h>
 
-#include <mc_rbdyn/configuration_io.h>
+#include <mc_solver/TasksQPSolver.h>
 
+#include <mc_rbdyn/rpy_utils.h>
+
+#include <mc_rbdyn/hat.h>
+#include <mc_rtc/ConfigurationHelpers.h>
+#include <mc_rtc/deprecated.h>
 #include <mc_rtc/gui/Force.h>
 #include <mc_rtc/gui/NumberInput.h>
-#include <vector>
 
 namespace mc_tasks
 {
-
+static inline mc_rtc::void_ptr_caster<mc_tvm::ForceFunction> tvm_error{};
 namespace details
 {
-
 inline static mc_rtc::void_ptr_caster<mc_tvm::ForceFunction> tvm_error{};
-
 struct TVMForceTask : public TrajectoryTaskGeneric
 {
   TVMForceTask(const mc_rbdyn::Robots & robots,
@@ -48,229 +44,61 @@ struct TVMForceTask : public TrajectoryTaskGeneric
 
   void update(mc_solver::QPSolver & solver) override { TrajectoryTaskGeneric::update(solver); }
 
-  void force(const std::vector<std::vector<double>> & p) { tvm_error(errorT)->force(p); }
+  void force(const sva::ForceVecd & p) { tvm_error(errorT)->force(p); }
 };
-
 } // namespace details
 
-inline static mc_rtc::void_ptr_caster<details::TVMForceTask> tvm_error{};
-
-inline static mc_rtc::void_ptr make_error(MetaTask::Backend backend,
-                                          const mc_solver::QPSolver & solver,
-                                          const mc_rbdyn::RobotFrame & frame,
-                                          unsigned int rIndex,
-                                          double weight)
-{
-  switch(backend)
-  {
-    // case MetaTask::Backend::Tasks:
-    //   return mc_rtc::make_void_ptr<tasks::qp::ForceTask>(solver.robots().mbs(), static_cast<int>(rIndex),
-    //                                                        solver.robot(rIndex).mbc().tau, weight);
-    case MetaTask::Backend::TVM:
-      return mc_rtc::make_void_ptr<details::TVMForceTask>(solver.robots(), frame, rIndex, weight);
-    default:
-      mc_rtc::log::error_and_throw("[ForceTask] Not implemented for solver backend: {}", backend);
-  }
-}
-
-ForceTask::ForceTask(const mc_solver::QPSolver & solver,
-                     const std::string & bodyName,
+ForceTask::ForceTask(const std::string & frameName,
                      const mc_rbdyn::Robots & robots,
                      unsigned int robotIndex,
                      double weight,
                      bool compensateExternalForces)
-: ForceTask(solver, robots.robot(robotIndex).frame(bodyName), weight, compensateExternalForces)
+: ForceTask(robots.robot(robotIndex).frame(frameName), weight, compensateExternalForces)
 {
-}
-
-ForceTask::ForceTask(const mc_solver::QPSolver & solver,
-                     const mc_rbdyn::RobotFrame & frame,
-                     double weight,
-                     bool compensateExternalForces)
-: robots_(frame.robot().robots()), frame_(frame),
-  pt_(make_error(backend_, solver, frame, frame.robot().robotIndex(), weight)), dt_(solver.dt())
-{
-  compensateExternalForces_ = compensateExternalForces;
-  eval_ = this->eval();
-  speed_ = Eigen::VectorXd::Zero(eval_.size());
-  curForce = frame_.wrench();
-
-  type_ = "body6d";
-  name_ = "body6d_" + frame.robot().name() + "_" + frame.name();
-  name(name_);
 }
 
 void ForceTask::reset()
 {
-  curForce = frame_.wrench();
-}
-
-void ForceTask::removeFromSolver(mc_solver::QPSolver & solver)
-{
-  if(!inSolver_) { return; }
-  inSolver_ = false;
+  TrajectoryTaskGeneric::reset();
   switch(backend_)
   {
-    // case Backend::Tasks:
-    //   tasks_solver(solver).removeTask(tasks_error(pt_));
-    //   break;
     case Backend::TVM:
-      MetaTask::removeFromSolver(*tvm_error(pt_), solver);
+      tvm_error(errorT)->reset();
       break;
     default:
       break;
   }
 }
 
-void ForceTask::addToSolver(mc_solver::QPSolver & solver)
+/*! \brief Load parameters from a Configuration object */
+void ForceTask::load(mc_solver::QPSolver & solver, const mc_rtc::Configuration & config)
 {
-  if(inSolver_) { return; }
-  inSolver_ = true;
-  switch(backend_)
-  {
-    // case Backend::Tasks:
-    //   tasks_solver(solver).addTask(tasks_error(pt_));
-    //   break;
-    case Backend::TVM:
-      MetaTask::addToSolver(*tvm_error(pt_), solver);
-      break;
-    default:
-      break;
-  }
+  if(config.has("weight")) { weight(config("weight")); }
+  if(config.has("compensateExternalForces")) { compensateExternalForces(config("compensateExternalForces")); }
+  TrajectoryBase::load(solver, config);
 }
 
-void ForceTask::update(mc_solver::QPSolver & solver)
+sva::ForceVecd ForceTask::target() const
 {
   switch(backend_)
   {
-    // case Backend::Tasks:
-    // {
-    //   const auto & pt = *tasks_error(pt_);
-    //   speed_ = pt.dimWeight().asDiagonal() * (pt.eval() - eval_) / dt_;
-    //   eval_ = pt.eval();
-    //   break;
-    // }
     case Backend::TVM:
-    {
-      auto & pt = *tvm_error(pt_);
-      pt.update(solver);
-      speed_ = (pt.eval() - eval_) / dt_;
-      eval_ = pt.dimWeight().asDiagonal() * pt.eval();
-      break;
-    }
-    default:
-      break;
-  }
-}
-
-void ForceTask::add_force(const sva::ForceVecd & dtr)
-{
-  set_force(curForce + dtr);
-}
-
-void ForceTask::set_force(const sva::ForceVecd & tf)
-{
-  curForce = tf;
-  std::vector<std::vector<double>> force = {{curForce.couple().x()}, {curForce.couple().y()}, {curForce.couple().z()},
-                                            {curForce.force().x()},  {curForce.force().y()},  {curForce.force().z()}};
-  switch(backend_)
-  {
-    // case Backend::Tasks:
-    //   tasks_error(pt_)->force(p);
-    //   break;
-    case Backend::TVM:
-      tvm_error(pt_)->force(force);
-      break;
-    default:
-      break;
-  }
-}
-
-sva::ForceVecd ForceTask::get_force()
-{
-  return curForce;
-}
-
-void ForceTask::dimWeight(const Eigen::VectorXd & dimW)
-{
-  switch(backend_)
-  {
-    // case Backend::Tasks:
-    //   tasks_error(pt_)->dimWeight(dimW);
-    //   break;
-    case Backend::TVM:
-      tvm_error(pt_)->dimWeight(dimW);
-      break;
-    default:
-      break;
-  }
-}
-
-Eigen::VectorXd ForceTask::dimWeight() const
-{
-  switch(backend_)
-  {
-    // case Backend::Tasks:
-    //   return tasks_error(pt_)->dimWeight();
-    case Backend::TVM:
-      return tvm_error(pt_)->dimWeight();
+      return tvm_error(errorT)->force();
     default:
       mc_rtc::log::error_and_throw("Not implemented");
   }
 }
 
-Eigen::VectorXd ForceTask::eval() const
+void ForceTask::target(const sva::ForceVecd & force)
 {
   switch(backend_)
   {
-    // case Backend::Tasks:
-    // {
-    //   auto & pt = *tasks_error(pt_);
-    //   return pt.dimWeight().asDiagonal() * pt.eval();
-    // }
     case Backend::TVM:
-      return tvm_error(pt_)->eval();
-    default:
-      mc_rtc::log::error_and_throw("Not implemented");
-  }
-}
-
-Eigen::VectorXd ForceTask::speed() const
-{
-  return speed_;
-}
-
-void ForceTask::weight(double w)
-{
-  switch(backend_)
-  {
-    // case Backend::Tasks:
-    //   tasks_error(pt_)->weight(w);
-    //   break;
-    case Backend::TVM:
-      tvm_error(pt_)->weight(w);
+      tvm_error(errorT)->force(force);
       break;
     default:
       break;
   }
-}
-
-double ForceTask::weight() const
-{
-  switch(backend_)
-  {
-    // case Backend::Tasks:
-    //   return tasks_error(pt_)->weight();
-    case Backend::TVM:
-      return tvm_error(pt_)->weight();
-    default:
-      mc_rtc::log::error_and_throw("Not implemented");
-  }
-}
-
-bool ForceTask::inSolver() const
-{
-  return inSolver_;
 }
 
 void ForceTask::compensateExternalForces(bool compensate)
@@ -278,7 +106,7 @@ void ForceTask::compensateExternalForces(bool compensate)
   switch(backend_)
   {
     case Backend::TVM:
-      tvm_error(pt_)->compensateExternalForces(compensate);
+      tvm_error(errorT)->compensateExternalForces(compensate);
       break;
     default:
       mc_rtc::log::error_and_throw("Compensating external forces is only supported in TVM backend");
@@ -290,43 +118,100 @@ bool ForceTask::isCompensatingExternalForces() const
   switch(backend_)
   {
     case Backend::TVM:
-      return tvm_error(pt_)->isCompensatingExternalForces();
+      return tvm_error(errorT)->isCompensatingExternalForces();
     default:
       mc_rtc::log::error_and_throw("Compensating external forces is only supported in TVM backend");
   }
 }
 
-void ForceTask::load(mc_solver::QPSolver & solver, const mc_rtc::Configuration & config)
-{
-  MetaTask::load(solver, config);
-  if(config.has("weight")) { weight(config("weight")); }
-}
-
 void ForceTask::addToLogger(mc_rtc::Logger & logger)
 {
-  MC_RTC_LOG_HELPER(name_ + "_target", curForce);
-  logger.addLogEntry(name_, this, [this]() { return frame_.position(); });
+  TrajectoryBase::addToLogger(logger);
+  logger.addLogEntry(name_ + "_force", this, [this]() { return frame_->wrench(); });
+  logger.addLogEntry(name_ + "_target_force", this, [this]() { return target(); });
 }
 
-void ForceTask::removeFromLogger(mc_rtc::Logger & logger)
-{
-  MetaTask::removeFromLogger(logger);
-}
+// std::function<bool(const mc_tasks::MetaTask &, std::string &)> ForceTask::buildCompletionCriteria(
+//     double dt,
+//     const mc_rtc::Configuration & config) const
+// {
+//   if(config.has("wrench"))
+//   {
+//     if(!frame_->hasForceSensor())
+//     {
+//       mc_rtc::log::error_and_throw<std::invalid_argument>("[{}] Attempted to use \"wrench\" as completion criteria
+//       but "
+//                                                           "frame \"{}\" is not attached to a force sensor",
+//                                                           name(), frame_->name());
+//     }
+//     sva::ForceVecd target_w = config("wrench");
+//     Eigen::Vector6d target = target_w.vector();
+//     Eigen::Vector6d dof = Eigen::Vector6d::Ones();
+//     for(int i = 0; i < 6; ++i)
+//     {
+//       if(std::isnan(target(i)))
+//       {
+//         dof(i) = 0.;
+//         target(i) = 0.;
+//       }
+//       else if(target(i) < 0) { dof(i) = -1.; }
+//     }
+//     return [dof, target](const mc_tasks::MetaTask & t, std::string & out)
+//     {
+//       const auto & self = static_cast<const mc_tasks::ForceTask &>(t);
+//       Eigen::Vector6d w = self.robots.robot(self.rIndex).surfaceWrench(self.surface()).vector();
+//       for(int i = 0; i < 6; ++i)
+//       {
+//         if(dof(i) * fabs(w(i)) < target(i)) { return false; }
+//       }
+//       out += "wrench";
+//       return true;
+//     };
+//   }
+//   return MetaTask::buildCompletionCriteria(dt, config);
+// }
 
 void ForceTask::addToGUI(mc_rtc::gui::StateBuilder & gui)
 {
-  MetaTask::addToGUI(gui);
+  TrajectoryTaskGeneric::addToGUI(gui);
   gui.addElement({"Tasks", name_}, mc_rtc::gui::Force(
-                                       "Force Target", [this]() { return this->get_force(); },
-                                       [this]() -> sva::PTransformd { return frame_.position(); }));
+                                       "Force Target", [this]() { return this->wrench(); },
+                                       [this]() -> sva::PTransformd { return frame_->position(); }));
   gui.addElement({"Tasks", name_, "Gains"},
                  mc_rtc::gui::NumberInput(
                      "weight", [this]() { return this->weight(); }, [this](const double & w) { this->weight(w); }));
 }
 
-void ForceTask::name(const std::string & name)
+} // namespace mc_tasks
+
+namespace
 {
-  MetaTask::name(name);
+
+static mc_tasks::MetaTaskPtr loadForceTask(mc_solver::QPSolver & solver, const mc_rtc::Configuration & config)
+{
+  const auto robotIndex = robotIndexFromConfig(config, solver.robots(), "transform");
+  const auto & robot = solver.robots().robot(robotIndex);
+  const auto & frame = [&]() -> const mc_rbdyn::RobotFrame &
+  {
+    if(config.has("surface"))
+    {
+      mc_rtc::log::deprecated("ForceTask", "surface", "frame");
+      return robot.frame(config("surface"));
+    }
+    else { return robot.frame(config("frame")); }
+  }();
+  auto t = std::make_shared<mc_tasks::ForceTask>(frame);
+  t->load(solver, config);
+  return t;
 }
 
-} // namespace mc_tasks
+static auto reg_dep = mc_tasks::MetaTaskLoader::register_load_function(
+    "surfaceTransform",
+    [](mc_solver::QPSolver & solver, const mc_rtc::Configuration & config)
+    {
+      mc_rtc::log::deprecated("TaskLoading", "surfaceTransform", "transform");
+      return loadForceTask(solver, config);
+    });
+static auto reg = mc_tasks::MetaTaskLoader::register_load_function("transform", &loadForceTask);
+
+} // namespace

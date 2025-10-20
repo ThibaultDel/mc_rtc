@@ -1,50 +1,36 @@
 /*
- * Copyright 2015-2019 CNRS-UM LIRMM, CNRS-AIST JRL
+ * Copyright 2015-2022 CNRS-UM LIRMM, CNRS-AIST JRL
  */
-
-#include <SpaceVecAlg/SpaceVecAlg>
-#include <Eigen/src/Core/Matrix.h>
 
 #pragma once
 
-#include <mc_tasks/MetaTask.h>
+#include <mc_tasks/TrajectoryTaskGeneric.h>
 
-#include <mc_rtc/void_ptr.h>
-
-#include <Tasks/QPTasks.h>
+#include <mc_rbdyn/RobotFrame.h>
 
 namespace mc_tasks
 {
 
-/*! \brief Controls an end-effector force
- *
- * This task is a thin wrapper around the appropriate tasks in Tasks.
- * The task objective is given in the world frame.
- */
-struct MC_TASKS_DLLAPI ForceTask : public MetaTask
+/*! \brief Control a frame 6D force */
+struct MC_TASKS_DLLAPI ForceTask : public TrajectoryTaskGeneric
 {
 public:
   /*! \brief Constructor
    *
-   * \param solver QP solver
-   *
-   * \param frame Control frame
+   * \param frame Frame controlled by this task
    *
    * \param weight Task weight
    *
-   * \param compensateExternalForces If true, the task will try to compensate for external forces acting on the robot
+   * \param compensateExternalForces If true, the task will try to compensate the external forces acting on the robot
    *
    */
-  ForceTask(const mc_solver::QPSolver & solver,
-            const mc_rbdyn::RobotFrame & frame,
-            double weight = 1000.0,
-            bool compensateExternalForces = false);
+  ForceTask(const mc_rbdyn::RobotFrame & frame, double weight = 500.0, bool compensateExternalForces = false);
 
   /*! \brief Constructor
    *
-   * \param solver QP solver
+   * Prefer the frame-based constructor
    *
-   * \param bodyName Name of the body to control
+   * \param frameName Name of the surface frame to control
    *
    * \param robots Robots controlled by this task
    *
@@ -55,63 +41,39 @@ public:
    * \param compensateExternalForces If true, the task will try to compensate for external forces acting on the robot
    *
    */
-  ForceTask(const mc_solver::QPSolver & solver,
-            const std::string & bodyName,
+  ForceTask(const std::string & frameName,
             const mc_rbdyn::Robots & robots,
             unsigned int robotIndex,
-            double weight = 1000.0,
+            double weight = 500,
             bool compensateExternalForces = false);
 
   /*! \brief Reset the task
    *
-   * Set the task objective to the current end-effector position
+   * Set the task target to the current frame position
+   *
+   * Reset its target velocity and acceleration to zero.
+   *
    */
   void reset() override;
 
-  /*! \brief Increment the target position
-   *
-   * \param dtr Change in target position
-   *
-   */
-  virtual void add_force(const sva::ForceVecd & dtr);
+  /*! \brief Get the task's target */
+  virtual sva::ForceVecd target() const;
 
-  /*! \brief Change the target position
+  /*! \brief Set the task's target
    *
-   * \param tf New target position
+   * \param force Target in world frame
    *
    */
-  virtual void set_force(const sva::ForceVecd & tf);
+  virtual void target(const sva::ForceVecd & force);
 
-  /*! \brief Returns the current target positions
-   *
-   * \returns Current target position
-   *
-   */
-  virtual sva::ForceVecd get_force();
+  /*! \brief Retrieve the controlled frame name */
+  inline const std::string & getFrameName() const noexcept { return frame_->name(); }
 
-  void dimWeight(const Eigen::VectorXd & dimW) override;
+  /*! \brief Return the controlled frame (const) */
+  const mc_rbdyn::RobotFrame & frame() const noexcept { return *frame_; }
 
-  Eigen::VectorXd dimWeight() const override;
-
-  // void selectActiveJoints(mc_solver::QPSolver & solver,
-  //                         const std::vector<std::string> & activeJointsName,
-  //                         const std::map<std::string, std::vector<std::array<int, 2>>> & activeDofs = {}) override;
-
-  // void selectUnactiveJoints(mc_solver::QPSolver & solver,
-  //                           const std::vector<std::string> & unactiveJointsName,
-  //                           const std::map<std::string, std::vector<std::array<int, 2>>> & unactiveDofs = {})
-  //                           override;
-
-  // void resetJointsSelector(mc_solver::QPSolver & solver) override;
-
-  /** Set task's weight */
-  void weight(double w);
-
-  /** Get task's weight */
-  double weight() const;
-
-  /** True if the task is in the solver */
-  bool inSolver() const;
+  /** Returns the wrench of the frame in the inertial frame */
+  inline sva::ForceVecd wrench() const noexcept { return frame_->wrench(); }
 
   /** Set if the task is compensating external forces */
   void compensateExternalForces(bool compensate);
@@ -119,54 +81,27 @@ public:
   /** True if the task is compensating external forces */
   bool isCompensatingExternalForces() const;
 
-  Eigen::VectorXd eval() const override;
-
-  Eigen::VectorXd speed() const override;
-
-  void load(mc_solver::QPSolver & solver, const mc_rtc::Configuration & config) override;
-
-  using MetaTask::name;
-
-  void name(const std::string & name) override;
-
-private:
-  sva::ForceVecd curForce;
-  /** True if added to solver */
-  bool inSolver_ = false;
-  /** Robot handled by the task */
-  const mc_rbdyn::Robots & robots_;
-  const mc_rbdyn::RobotFrame & frame_;
-
-  unsigned int rIndex_;
-  /** Holds the constraint implementation
-   *
-   * In Tasks backend:
-   * - None
-   *
-   * In TVM backend:
-   * - details::TVMForceTask
-   */
-  mc_rtc::void_ptr pt_;
-  /** Solver timestep */
-  double dt_;
-  /** True if the task is compensating external forces */
-  bool compensateExternalForces_ = false;
-  /** Store the previous eval vector */
-  Eigen::VectorXd eval_;
-  /** Store the task speed */
-  Eigen::VectorXd speed_;
-
-protected:
-  void removeFromSolver(mc_solver::QPSolver & solver) override;
-
-  void addToSolver(mc_solver::QPSolver & solver) override;
-
-  void update(mc_solver::QPSolver &) override;
+  // /** Add support for the following criterias:
+  //  *
+  //  * - wrench: completed when the surface wrench reaches the given wrench, if
+  //  *   some values are NaN, this direction is ignored. Only valid if the surface
+  //  *   controlled by this task is attached to a force sensor, throws otherwise
+  //  *
+  //  * @throws If wrench is used but the surface is not attached to a force sensor
+  //  */
+  // std::function<bool(const mc_tasks::MetaTask & task, std::string &)> buildCompletionCriteria(
+  //     double dt,
+  //     const mc_rtc::Configuration & config) const override;
 
   void addToLogger(mc_rtc::Logger & logger) override;
 
-  void removeFromLogger(mc_rtc::Logger & logger) override;
+  /*! \brief Load parameters from a Configuration object */
+  void load(mc_solver::QPSolver & solver, const mc_rtc::Configuration & config) override;
 
+protected:
+  mc_rbdyn::ConstRobotFramePtr frame_;
+  sva::ForceVecd curForce;
+  bool compensateExternalForces_ = false;
   void addToGUI(mc_rtc::gui::StateBuilder & gui) override;
 };
 

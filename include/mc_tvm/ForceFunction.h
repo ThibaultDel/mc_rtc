@@ -13,6 +13,7 @@
 
 #include <RBDyn/Jacobian.h>
 
+#include <SpaceVecAlg/ForceVec.h>
 #include <SpaceVecAlg/SpaceVecAlg>
 
 // #include <mc_rbdyn/VirtualforceSensor.h>
@@ -40,20 +41,25 @@ public:
   /** Set the target force to the current robot's force */
   void reset();
 
-  /** Set the target for a given joint
-   *
-   *  \param j Joint name
-   *
-   *  \param tau Target configuration
-   *
-   */
-  void force(const std::string & j, const std::vector<double> & tau);
+  // /** Set the target for a given joint
+  //  *
+  //  *  \param j Joint name
+  //  *
+  //  *  \param tau Target configuration
+  //  *
+  //  */
+  // void force(const std::string & j, const std::vector<double> & tau);
 
-  /** Set the fully body force */
-  void force(const std::vector<std::vector<double>> & tau);
+  // /** Set the fully body force */
+  // void force(const std::vector<std::vector<double>> & tau);
+
+  void force(const sva::ForceVecd & tf) { force_ = tf.vector(); }
 
   /** Access the full target force */
-  const std::vector<std::vector<double>> & force() const noexcept { return force_mc_rtc_; }
+  // const std::vector<std::vector<double>> & force() const noexcept { return force_mc_rtc_; }
+
+  /** Access the full target force */
+  sva::ForceVecd force() const { return sva::ForceVecd(force_); }
 
   void compensateExternalForces(bool compensate) { compensateExternalForces_ = compensate; }
 
@@ -71,12 +77,12 @@ protected:
 
   bool compensateExternalForces_;
 
-  void eigenToMCrtcforce();
-  void mcrtcforceToEigen();
+  // void eigenToMCrtcforce();
+  // void mcrtcforceToEigen();
 
   /** Target */
-  Eigen::VectorXd force_;
-  std::vector<std::vector<double>> force_mc_rtc_;
+  Eigen::Vector6d force_;
+  // std::vector<std::vector<double>> force_mc_rtc_;
   /** Starting joint */
   int j0_;
 };
