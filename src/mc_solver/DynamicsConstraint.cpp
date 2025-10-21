@@ -126,6 +126,33 @@ void DynamicsConstraint::addToSolverImpl(QPSolver & solver)
       mc_tvm::DynamicFunctionPtr dyn_fn = *static_cast<mc_tvm::DynamicFunctionPtr *>(motion_constr_.get());
       auto dyn = problem.add(dyn_fn == 0., tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(0)});
       constraints_.push_back(dyn);
+
+      const std::string robot_frame_name = "Hammer_Head";
+
+      rbd::MultiBody robot_mb = solver.robot(robotIndex_).mb();
+      rbd::Jacobian jac(robot_mb, robot_frame_name);
+      rbd::MultiBodyConfig mbc = solver.robot(robotIndex_).mbc();
+      Eigen::MatrixXd world_frame_jacobian = jac.jacobian(robot_mb, mbc);
+      Eigen::MatrixXd jac_f_w_f(6, robot_mb.nrDof());
+
+      jac.fullJacobian(robot_mb, world_frame_jacobian, jac_f_w_f);
+
+      auto M = tvm_robot.H();
+      auto qd = tvm_robot.alpha();
+
+      auto normal = solver.robot(robotIndex_).frame(robot_frame_name).position().rotation().col(0);
+
+      auto J_m = jac_f_w_f.transpose()*(jac_f_w_f*M.inverse()*jac_f_w_f.transpose());
+      auto P_n = normal*normal.transpose();
+      double TL_multiplier = 2.5f; // multiplier to get momentary torque limit (mean multiplier based on datasheet of some harmonic drives)
+      double c_res = 1; // coefficition of restitution
+      double delta_t = 0.005; // [s] duration of impact estimate
+
+      // momentary torque constraint
+      auto Mom_torque = problem.add(TL_multiplier*tvm_robot.limits().tl <= J_m*P_n*jac_f_w_f*tvm_robot.alphaD() <= (TL_multiplier*tvm_robot.limits().tu)/(c_res+1)-(J_m*P_n*jac_f_w_f*qd)/delta_t,
+                            tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(0)});
+
+
       auto cstr = problem.constraint(*dyn);
       problem.add(tvm::hint::Substitution(cstr, tvm_robot.tau()));
       break;
