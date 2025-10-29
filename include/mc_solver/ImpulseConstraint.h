@@ -35,24 +35,6 @@ public:
                         double limit_multiplier,
                         int axis);
 
-  // /** Damped constraint constructor
-  //  * Builds a damped joint limits constraint
-  //  * See tasks::qp::DamperJointLimitsConstr documentation for detail
-  //  * \param robots The robots including the robot affected by this constraint
-  //  * \param robotIndex The index of the robot affected by this constraint
-  //  * \param timeStep Solver timestep
-  //  * \param damper Value of the damper {interaction distance, safety distance,
-  //  * offset}
-  //  * \param velocityPercent Maximum joint velocity percentage, 0.5 is advised
-  //  */
-  // ImpulseConstraint(const mc_rbdyn::Robots & robots,
-  //                      unsigned int robotIndex,
-  //                      double timeStep,
-  //                      const mc_rbdyn::RobotFrame & frame,
-  //                      double delta_t,
-  //                      double c_res,
-  //                      double limit_multiplier);
-
 protected:
   /** Implementation of mc_solver::ConstraintSet::addToSolver */
   void addToSolverImpl(mc_solver::QPSolver & solver) override;
