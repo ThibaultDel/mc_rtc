@@ -298,6 +298,7 @@ set(mc_tvm_HDR
     ${mc_tvm_HDR_DIR}/Frame.h
     ${mc_tvm_HDR_DIR}/FrameVelocity.h
     ${mc_tvm_HDR_DIR}/GazeFunction.h
+    ${mc_tvm_HDR_DIR}/ImpulseFunction.h
     ${mc_tvm_HDR_DIR}/Limits.h
     ${mc_tvm_HDR_DIR}/JointsSelectorFunction.h
     ${mc_tvm_HDR_DIR}/Momentum.h
@@ -323,6 +324,7 @@ set(mc_tvm_SRC
     mc_tvm/Frame.cpp
     mc_tvm/FrameVelocity.cpp
     mc_tvm/GazeFunction.cpp
+    mc_tvm/ImpulseFunction.cpp
     mc_tvm/JointsSelectorFunction.cpp
     mc_tvm/Momentum.cpp
     mc_tvm/MomentumFunction.cpp
@@ -429,6 +431,7 @@ set(mc_solver_SRC
     mc_solver/ContactConstraint.cpp
     mc_solver/ContactWrenchMatrixToLambdaMatrix.cpp
     mc_solver/DynamicsConstraint.cpp
+    mc_solver/ImpulseConstraint.cpp
     mc_solver/KinematicsConstraint.cpp
     mc_solver/QPSolver.cpp
     mc_solver/TasksQPSolver.cpp
@@ -453,6 +456,7 @@ set(mc_solver_HDR
     ../include/mc_solver/DynamicsConstraint.h
     ../include/mc_solver/EqualityConstraint.h
     ../include/mc_solver/GenInequalityConstraint.h
+    ../include/mc_solver/ImpulseConstraint.h
     ../include/mc_solver/InequalityConstraint.h
     ../include/mc_solver/KinematicsConstraint.h
     ../include/mc_solver/GenericLoader.h
