@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2022 CNRS-UM LIRMM, CNRS-AIST JRL
+* Copyright 2015-2022 CNRS-UM LIRMM, CNRS-AIST JRL
  */
 
 #pragma once
@@ -48,7 +48,17 @@ protected:
   const double limit_multiplier_;
   const int axis_; // limited between 0 and 2, 0 = x-axis, 1 = y-axis and 2 = z-axis
 
+  Eigen::MatrixXd J_ddq;
+  Eigen::MatrixXd J_dq;
+
   rbd::Jacobian jac_;
+
+  /* Persisting tvm variables to avoid temporaries/dangling pointers */
+  tvm::VariablePtr q_ddot_var_;
+  tvm::VariablePtr q_dot_var_;
+  /* Persisting vectors to avoid any temporary-vector lifetime issues */
+  tvm::VariableVector q_ddot_vars_;
+  tvm::VariableVector q_dot_vars_;
 
   void updateJacobian();
 };
