@@ -6,6 +6,9 @@
 
 #include <mc_rbdyn/Robots.h>
 #include <mc_solver/ConstraintSet.h>
+#include "mc_tvm/ImpulseFunction.h"
+
+#include <mc_rtc/log/Logger.h>
 
 #include <mc_rtc/void_ptr.h>
 
@@ -33,7 +36,8 @@ public:
                         double delta_t,
                         double c_res,
                         double limit_multiplier,
-                        int axis);
+                        int axis,
+                        mc_rtc::Logger & logger);
 
 protected:
   /** Implementation of mc_solver::ConstraintSet::addToSolver */
@@ -52,6 +56,12 @@ protected:
    * The deleter carries the initial type of the constraint
    */
   mc_rtc::void_ptr constraint_;
+
+  void add_logs();
+
+  mc_rtc::Logger & logger_;
+
+  // auto evaluation;
 };
 
 } // namespace mc_solver

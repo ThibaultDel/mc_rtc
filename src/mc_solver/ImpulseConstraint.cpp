@@ -10,7 +10,6 @@
 #include <Tasks/QPConstr.h>
 
 #include "TVMImpulseConstraint.h"
-#include "mc_tvm/ImpulseFunction.h"
 
 namespace mc_solver
 {
@@ -36,15 +35,16 @@ TVMImpulseConstraint::TVMImpulseConstraint(const mc_rbdyn::Robot & robot,
                                                  double c_res,
                                                  double limit_multiplier,
                                                  int axis)
-: robot_(robot), frame_(frame), delta_t_(delta_t), c_res_(c_res), limit_multiplier_(limit_multiplier), imp_constr_(initialize_imp_cstr(robot, frame, delta_t, c_res, limit_multiplier, axis))
+: robot_(robot), frame_(frame), delta_t_(delta_t), c_res_(c_res), limit_multiplier_(limit_multiplier), imp_constr_(initialize_imp_cstr(robot, frame, delta_t, c_res, limit_multiplier, axis)), upper_limit_(robot_.tvmRobot().limits().tu * limit_multiplier_ / (c_res_+1)), lower_limit_(robot_.tvmRobot().limits().tl * limit_multiplier_ / (c_res_+1))
 {
 }
 
 void TVMImpulseConstraint::addToSolver(mc_solver::TVMQPSolver & solver)
 {
       auto & problem = tvm_solver(solver).problem();
+      mc_rtc::log::info("Size of the lower limit is {}", lower_limit_.size());
       mc_tvm::ImpulseFunctionPtr imp_fn = *static_cast<mc_tvm::ImpulseFunctionPtr *>(imp_constr_.get());
-      auto imp = problem.add(imp_fn <= 0., tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(0)});
+      auto imp = problem.add( lower_limit_ <= imp_fn <= upper_limit_, tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(1)});
       constraints_.push_back(imp);
 
 }
@@ -87,9 +87,10 @@ static mc_rtc::void_ptr initialize(QPSolver::Backend backend,
   }
 }
 
-ImpulseConstraint::ImpulseConstraint(const mc_rbdyn::Robots & robots, unsigned int robotIndex, const mc_rbdyn::RobotFrame & frame, double delta_t, double c_res, double limit_multiplier, int axis)
-: constraint_(initialize(backend_, robots, robotIndex, frame, delta_t, c_res, limit_multiplier, axis))
+ImpulseConstraint::ImpulseConstraint(const mc_rbdyn::Robots & robots, unsigned int robotIndex, const mc_rbdyn::RobotFrame & frame, double delta_t, double c_res, double limit_multiplier, int axis, mc_rtc::Logger & logger)
+: constraint_(initialize(backend_, robots, robotIndex, frame, delta_t, c_res, limit_multiplier, axis)), logger_(logger)
 {
+  add_logs();
 }
 
 void ImpulseConstraint::addToSolverImpl(mc_solver::QPSolver & solver)
@@ -121,5 +122,19 @@ void ImpulseConstraint::removeFromSolverImpl(mc_solver::QPSolver & solver)
       break;
   }
 }
+
+void ImpulseConstraint::add_logs()
+{
+  logger_.addLogEntry("ImpulseConstraintEvaluation", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->value();});
+
+  logger_.addLogEntry("ImpulseConstraintLowerlimit", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->LowerLimit();});
+
+  logger_.addLogEntry("ImpulseConstraintUpperlimit", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->UpperLimit();});
+
+}
+
 
 } // namespace mc_solver

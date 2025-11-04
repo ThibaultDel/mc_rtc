@@ -18,13 +18,13 @@ ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::
 {
   assert(frame_->robot().robotIndex() == robot_.robotIndex() && "ImpulseFunction frame must belong to the robot");
   assert(axis_ >= 0 && axis_ < 3 && "Axis must be in [0, 2] as there are only three translational axis in the frame (1=x, 2=y, 3=z)");
-  registerUpdates(Update::B, &ImpulseFunction::updateb);
+  // registerUpdates(Update::B, &ImpulseFunction::updateb);
   registerUpdates(Update::Jacobian, &ImpulseFunction::updateJacobian);
-  addOutputDependency<ImpulseFunction>(Output::B, Update::B);
+  // addOutputDependency<ImpulseFunction>(Output::B, Update::B);
   addOutputDependency<ImpulseFunction>(Output::Jacobian, Update::Jacobian);
   auto & tvm_robot = robot.tvmRobot();
   addInputDependency<ImpulseFunction>(Update::Jacobian, tvm_robot, Robot::Output::H);
-  addInputDependency<ImpulseFunction>(Update::B, tvm_robot, Robot::Output::C);
+  // addInputDependency<ImpulseFunction>(Update::B, tvm_robot, Robot::Output::C); // TODO check if needed
   // addVariable(tvm::dot(tvm_robot.q(), 2), true);
   // addVariable(tvm::dot(tvm_robot.q(), 1), true);
   q_ddot_var_ = tvm::dot(tvm_robot.q(), 2);
@@ -33,6 +33,8 @@ ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::
   addVariable(q_dot_var_, true);
   q_ddot_vars_.add(q_ddot_var_);
   q_dot_vars_.add(q_dot_var_);
+  // b_ = - robot_.tvmRobot().limits().tl * limit_multiplier_ / (c_res_+1);
+  b_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
 
   if(!q_ddot_var_ || !q_dot_var_)
   {
@@ -47,11 +49,16 @@ ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::
 
 void ImpulseFunction::updateb()
 {
-  b_ = - robot_.tvmRobot().limits().tl * limit_multiplier_ / (c_res_+1);
+  // b_ = - robot_.tvmRobot().limits().tl * limit_multiplier_ / (c_res_+1);
   // b_ = robot_.tvmRobot().limits().tl;
 
-  mc_rtc::log::info("the evaluation of the function:");
-  mc_rtc::log::info(value());
+  // mc_rtc::log::info("the evaluation of the function:");
+  // mc_rtc::log::info(value());
+
+  b_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+
+  // mc_rtc::log::info(" actual valuation:");
+  // mc_rtc::log::info(value());
 
 }
 
@@ -92,8 +99,25 @@ void ImpulseFunction::updateJacobian()
   J_ddq = j_m * P_n * full_world_frame_jacobian;              // multiplies ddq variable
   J_dq  = j_m * P_n * full_world_frame_jacobian / delta_t_;  // multiplies dq variable
 
-  J_ddq = Eigen::MatrixXd::Identity(robot_mb.nrDof(), robot_mb.nrDof());              // multiplies ddq variable
-  J_dq  = Eigen::MatrixXd::Identity(robot_mb.nrDof(), robot_mb.nrDof());  // multiplies dq variable
+  auto evaluation1 = J_ddq * robot.alphaD()->value();
+  auto evaluation2 = /*J_ddq * robot.alphaD()->value() + */J_dq * robot.alpha()->value() /*- b_*/;
+  auto evaluation3 = /*J_ddq * robot.alphaD()->value() + *//*J_dq * robot.alpha()->value()*/ - b_;
+  auto evaluation = evaluation1 + evaluation2 + evaluation3;
+  // auto evaluation = J_ddq * robot.alphaD()->value()/* + J_dq * robot.alpha()->value()*//* - b_*/;
+
+
+  // mc_rtc::log::info("evaluation1:");
+  // mc_rtc::log::info(evaluation1.transpose());
+  // mc_rtc::log::info("evaluation2:");
+  // mc_rtc::log::info(evaluation2.transpose());
+  // mc_rtc::log::info("evaluation3:");
+  // mc_rtc::log::info(evaluation3.transpose());
+  // mc_rtc::log::info("evaluation:");
+  // mc_rtc::log::info(evaluation);
+
+
+  // J_ddq = Eigen::MatrixXd::Identity(robot_mb.nrDof(), robot_mb.nrDof());              // multiplies ddq variable
+  // J_dq  = Eigen::MatrixXd::Identity(robot_mb.nrDof(), robot_mb.nrDof());  // multiplies dq variable
 
 
   // Sanity checks: variables non-null and sizes match
@@ -126,7 +150,12 @@ void ImpulseFunction::updateJacobian()
   splitJacobian(J_ddq, q_ddot_vars_);
   splitJacobian(J_dq, q_dot_vars_);
 
-
+  // mc_rtc::log::info(" actual valuation:");
+  // mc_rtc::log::info(value());
+  // mc_rtc::log::info("lower bounds are");
+  // mc_rtc::log::info(robot_.tvmRobot().limits().tl * limit_multiplier_ / (c_res_+1));
+  // mc_rtc::log::info("upper bounds are");
+  // mc_rtc::log::info(robot_.tvmRobot().limits().tu * limit_multiplier_ / (c_res_+1));
 
   // splitJacobian(robot.H(), robot.alphaD());
   // splitJacobian(robot.H(), robot.alpha());
@@ -148,8 +177,8 @@ void ImpulseFunction::updateJacobian()
   // mc_rtc::log::info("size of J_ddq is {}x{}", J_ddq.rows(), J_ddq.cols());
   // mc_rtc::log::info("size of J_dq is {}x{}", J_dq.rows(), J_dq.cols());
 
-  mc_rtc::log::info("the evaluation of the function:");
-  mc_rtc::log::info(value());
+  // mc_rtc::log::info("the evaluation of the function:");
+  // mc_rtc::log::info(value());
 
 }
 } // namespace mc_tvm
