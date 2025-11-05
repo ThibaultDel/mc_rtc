@@ -10,6 +10,9 @@
 
 #include <tvm/ControlProblem.h>
 #include <tvm/hint/internal/DiagonalCalculator.h>
+#include <tvm/task_dynamics/Constant.h>
+#include <tvm/task_dynamics/None.h>
+
 
 namespace mc_solver
 {
