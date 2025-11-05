@@ -45,6 +45,20 @@ public:
                        const std::array<double, 3> & damper,
                        double velocityPercent = 0.5);
 
+  /** Damped constraint constructor for closed loop second order dynamics TVM
+   * Builds a damped joint limits constraint
+   * See tasks::qp::DamperJointLimitsConstr documentation for detail
+   * \param robots The robots including the robot affected by this constraint
+   * \param robotIndex The index of the robot affected by this constraint
+   * \param damperSecond Value of the damper {interaction distance, safety distance,
+   * offset, amortization margin}
+   * \param velocityPercent Maximum joint velocity percentage, 0.5 is advised
+   */
+  KinematicsConstraint(const mc_rbdyn::Robots & robots,
+                       unsigned int robotIndex,
+                       const std::array<double, 5> & damperSecond,
+                       double velocityPercent = 0.5);
+
 protected:
   /** Implementation of mc_solver::ConstraintSet::addToSolver */
   void addToSolverImpl(mc_solver::QPSolver & solver) override;
