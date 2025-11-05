@@ -51,7 +51,6 @@ struct TVMTorqueTask : public TrajectoryTaskGeneric
 
 } // namespace details
 
-// inline static mc_rtc::void_ptr_caster<tasks::qp::TorqueTask> tasks_error{};
 inline static mc_rtc::void_ptr_caster<details::TVMTorqueTask> tvm_error{};
 
 inline static mc_rtc::void_ptr make_error(MetaTask::Backend backend,
@@ -197,7 +196,12 @@ Eigen::VectorXd TorqueTask::eval() const
     //   return pt.dimWeight().asDiagonal() * pt.eval();
     // }
     case Backend::TVM:
+    {
+      // auto & pt = *tvm_error(pt_);
+      // return pt.dimWeight().asDiagonal() * pt.eval();
       return tvm_error(pt_)->eval();
+    }
+
     default:
       mc_rtc::log::error_and_throw("Not implemented");
   }

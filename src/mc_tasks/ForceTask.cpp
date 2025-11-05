@@ -17,6 +17,9 @@
 
 #include <mc_rtc/gui/Force.h>
 #include <mc_rtc/gui/NumberInput.h>
+#include <RBDyn/MultiBodyConfig.h>
+#include <SpaceVecAlg/SpaceVecAlg>
+#include <Eigen/src/Core/Matrix.h>
 #include <vector>
 
 namespace mc_tasks
@@ -30,13 +33,14 @@ inline static mc_rtc::void_ptr_caster<mc_tvm::ForceFunction> tvm_error{};
 struct TVMForceTask : public TrajectoryTaskGeneric
 {
   TVMForceTask(const mc_rbdyn::Robots & robots,
-               const mc_rbdyn::RobotFrame & frame,
                unsigned int robotIndex,
+               Eigen::MatrixXd jTransposePseudoInverse,
                double weight,
                bool compensateExternalForces = false)
   : TrajectoryTaskGeneric(robots, robotIndex, 0, weight)
   {
-    finalize<Backend::TVM, mc_tvm::ForceFunction>(robots.robot(robotIndex), frame, compensateExternalForces);
+    finalize<Backend::TVM, mc_tvm::ForceFunction>(robots.robot(robotIndex), jTransposePseudoInverse,
+                                                  compensateExternalForces);
     type_ = "force";
     name_ = std::string("force_") + robots.robot(robotIndex).name();
     isNoneTaskDynamics_ = true;
@@ -48,7 +52,14 @@ struct TVMForceTask : public TrajectoryTaskGeneric
 
   void update(mc_solver::QPSolver & solver) override { TrajectoryTaskGeneric::update(solver); }
 
-  void force(const sva::ForceVecd & p) { tvm_error(errorT)->force(p); }
+  void force(const Eigen::VectorXd & p) { tvm_error(errorT)->forceTarget(p); }
+
+  Eigen::MatrixXd getJacobianTPseudoInverse() const { return tvm_error(errorT)->getJacobianT(); }
+
+  void setJacobianTPseudoInverse(const Eigen::MatrixXd & jTransposePseudoInverse)
+  {
+    tvm_error(errorT)->setJacobianTPseudoInverse(jTransposePseudoInverse);
+  }
 };
 
 } // namespace details
@@ -57,9 +68,10 @@ inline static mc_rtc::void_ptr_caster<details::TVMForceTask> tvm_error{};
 
 inline static mc_rtc::void_ptr make_error(MetaTask::Backend backend,
                                           const mc_solver::QPSolver & solver,
-                                          const mc_rbdyn::RobotFrame & frame,
+                                          Eigen::MatrixXd jTransposePseudoInverse,
                                           unsigned int rIndex,
-                                          double weight)
+                                          double weight,
+                                          bool compensateExternalForces)
 {
   switch(backend)
   {
@@ -67,36 +79,28 @@ inline static mc_rtc::void_ptr make_error(MetaTask::Backend backend,
     //   return mc_rtc::make_void_ptr<tasks::qp::ForceTask>(solver.robots().mbs(), static_cast<int>(rIndex),
     //                                                        solver.robot(rIndex).mbc().tau, weight);
     case MetaTask::Backend::TVM:
-      return mc_rtc::make_void_ptr<details::TVMForceTask>(solver.robots(), frame, rIndex, weight);
+      return mc_rtc::make_void_ptr<details::TVMForceTask>(solver.robots(), rIndex, jTransposePseudoInverse, weight,
+                                                          compensateExternalForces);
     default:
       mc_rtc::log::error_and_throw("[ForceTask] Not implemented for solver backend: {}", backend);
   }
 }
 
 ForceTask::ForceTask(const mc_solver::QPSolver & solver,
-                     const std::string & bodyName,
                      const mc_rbdyn::Robots & robots,
                      unsigned int robotIndex,
+                     Eigen::MatrixXd jTransposePseudoInverse,
                      double weight,
                      bool compensateExternalForces)
-: ForceTask(solver, robots.robot(robotIndex).frame(bodyName), weight, compensateExternalForces)
+: robots_(robots), jTransposePseudoInverse_(jTransposePseudoInverse), rIndex_(robotIndex),
+  pt_(make_error(backend_, solver, jTransposePseudoInverse, robotIndex, weight, compensateExternalForces)),
+  dt_(solver.dt()), compensateExternalForces_(compensateExternalForces)
 {
-}
-
-ForceTask::ForceTask(const mc_solver::QPSolver & solver,
-                     const mc_rbdyn::RobotFrame & frame,
-                     double weight,
-                     bool compensateExternalForces)
-: robots_(frame.robot().robots()), frame_(frame),
-  pt_(make_error(backend_, solver, frame, frame.robot().robotIndex(), weight)), dt_(solver.dt())
-{
-  compensateExternalForces_ = compensateExternalForces;
+  reset();
   eval_ = this->eval();
   speed_ = Eigen::VectorXd::Zero(eval_.size());
-  curForce = frame_.wrench();
-
-  type_ = "force6d";
-  name_ = "force6d_" + frame.robot().name() + "_" + frame.name();
+  type_ = "force";
+  name_ = "force_" + robots_.robot(rIndex_).name();
   name(name_);
 }
 
@@ -126,8 +130,31 @@ void ForceTask::update(mc_solver::QPSolver & solver)
 
 void ForceTask::reset()
 {
-  curForce = frame_.wrench();
+  target_ = Eigen::VectorXd::Zero(jTransposePseudoInverse_.rows());
+  setForceTarget(target_);
 }
+
+// Eigen::VectorXd ForceTask::getCurrentForce() const
+// {
+//   Eigen::Vector6d currentForce;
+//   Eigen::VectorXd currentTorque = rbd::dofToVector(robots_.robot(frame_.robot().robotIndex()).mb(),
+//   robots_.robot(frame_.robot().robotIndex()).mbc().jointTorque);
+
+//   switch(backend_)
+//   {
+//     case Backend::TVM:
+//     {
+//       Eigen::MatrixXd jac =  tvm_error(pt_)->getJacobian();
+//       currentForce = jac.completeOrthogonalDecomposition().solve(currentTorque);
+//       return Eigen::VectorXd(currentForce.head<3>(), currentForce.tail<3>());
+//     }
+//     default:
+//     {
+//       mc_rtc::log::error_and_throw("Not implemented");
+//       return Eigen::VectorXd::Zero();
+//     }
+//   }
+// }
 
 void ForceTask::removeFromSolver(mc_solver::QPSolver & solver)
 {
@@ -203,17 +230,14 @@ void ForceTask::resetJointsSelector(mc_solver::QPSolver & solver)
   }
 }
 
-void ForceTask::add_force(const sva::ForceVecd & dtr)
+void ForceTask::addForceTarget(const Eigen::VectorXd & dtr)
 {
-  set_force(curForce + dtr);
+  setForceTarget(target_ + dtr);
 }
 
-void ForceTask::set_force(const sva::ForceVecd & tf)
+void ForceTask::setForceTarget(const Eigen::VectorXd & tf)
 {
-  curForce = tf;
-  // std::vector<std::vector<double>> force = {{curForce.couple().x()}, {curForce.couple().y()},
-  // {curForce.couple().z()},
-  //                                           {curForce.force().x()},  {curForce.force().y()}, {curForce.force().z()}};
+  target_ = tf;
   switch(backend_)
   {
     // case Backend::Tasks:
@@ -227,9 +251,9 @@ void ForceTask::set_force(const sva::ForceVecd & tf)
   }
 }
 
-sva::ForceVecd ForceTask::get_force()
+Eigen::VectorXd ForceTask::getForceTarget() const
 {
-  return curForce;
+  return target_;
 }
 
 void ForceTask::dimWeight(const Eigen::VectorXd & dimW)
@@ -337,6 +361,29 @@ bool ForceTask::isCompensatingExternalForces() const
   }
 }
 
+void ForceTask::setJacobianTPseudoInverse(const Eigen::MatrixXd & jTransposePseudoInverse)
+{
+  switch(backend_)
+  {
+    case Backend::TVM:
+      tvm_error(pt_)->setJacobianTPseudoInverse(jTransposePseudoInverse);
+      break;
+    default:
+      mc_rtc::log::error_and_throw("Setting Jacobian is only supported in TVM backend");
+  }
+}
+
+Eigen::MatrixXd ForceTask::getJacobianTPseudoInverse() const
+{
+  switch(backend_)
+  {
+    case Backend::TVM:
+      return tvm_error(pt_)->getJacobianTPseudoInverse();
+    default:
+      mc_rtc::log::error_and_throw("Getting Jacobian is only supported in TVM backend");
+  }
+}
+
 void ForceTask::load(mc_solver::QPSolver & solver, const mc_rtc::Configuration & config)
 {
   MetaTask::load(solver, config);
@@ -345,8 +392,8 @@ void ForceTask::load(mc_solver::QPSolver & solver, const mc_rtc::Configuration &
 
 void ForceTask::addToLogger(mc_rtc::Logger & logger)
 {
-  MC_RTC_LOG_HELPER(name_ + "_target", curForce);
-  logger.addLogEntry(name_, this, [this]() { return frame_.position(); });
+  MC_RTC_LOG_HELPER(name_ + "_target", target_);
+  // logger.addLogEntry(name_, this, [this]() { return frame_.position(); });
 }
 
 void ForceTask::removeFromLogger(mc_rtc::Logger & logger)
@@ -357,9 +404,9 @@ void ForceTask::removeFromLogger(mc_rtc::Logger & logger)
 void ForceTask::addToGUI(mc_rtc::gui::StateBuilder & gui)
 {
   MetaTask::addToGUI(gui);
-  gui.addElement({"Tasks", name_}, mc_rtc::gui::Force(
-                                       "Force Target", [this]() { return this->get_force(); },
-                                       [this]() -> sva::PTransformd { return frame_.position(); }));
+  // gui.addElement({"Tasks", name_}, mc_rtc::gui::Force(
+  //                                      "Force Target", [this]() { return this->getForceTarget(); },
+  //                                      [this]() -> sva::PTransformd { return frame_.position(); }));
   gui.addElement({"Tasks", name_, "Gains"},
                  mc_rtc::gui::NumberInput(
                      "weight", [this]() { return this->weight(); }, [this](const double & w) { this->weight(w); }));

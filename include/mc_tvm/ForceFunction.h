@@ -8,11 +8,11 @@
 
 #include <mc_rbdyn/fwd.h>
 
-#include "mc_rbdyn/RobotFrame.h"
 #include <tvm/function/abstract/LinearFunction.h>
 
 #include <RBDyn/Jacobian.h>
 
+#include <SpaceVecAlg/EigenTypedef.h>
 #include <SpaceVecAlg/ForceVec.h>
 #include <SpaceVecAlg/SpaceVecAlg>
 
@@ -35,31 +35,18 @@ public:
    *
    */
   ForceFunction(const mc_rbdyn::Robot & robot,
-                const mc_rbdyn::RobotFrame & frame,
+                Eigen::MatrixXd jTransposePseudoInverse,
                 bool compensateExternalForces = false);
 
-  /** Set the target force to the current robot's force */
-  void reset();
-
-  // /** Set the target for a given joint
-  //  *
-  //  *  \param j Joint name
-  //  *
-  //  *  \param tau Target configuration
-  //  *
-  //  */
-  // void force(const std::string & j, const std::vector<double> & tau);
-
-  // /** Set the fully body force */
-  // void force(const std::vector<std::vector<double>> & tau);
-
-  void force(const sva::ForceVecd & tf) { force_ = tf.vector(); }
+  void forceTarget(const Eigen::VectorXd & tf) { target_ = tf; }
+  Eigen::MatrixXd getJacobianT() const { return jTransposePseudoInverse_; }
+  void setJacobianTPseudoInverse(const Eigen::MatrixXd & jTransposePseudoInverse)
+  {
+    jTransposePseudoInverse_ = jTransposePseudoInverse;
+  }
 
   /** Access the full target force */
-  // const std::vector<std::vector<double>> & force() const noexcept { return force_mc_rtc_; }
-
-  /** Access the full target force */
-  sva::ForceVecd force() const { return sva::ForceVecd(force_); }
+  Eigen::VectorXd forceTarget() const { return target_; }
 
   void compensateExternalForces(bool compensate) { compensateExternalForces_ = compensate; }
 
@@ -71,20 +58,11 @@ protected:
   void updateJacobian();
 
   const mc_rbdyn::Robot & robot_;
-  /** Frame */
-  const mc_rbdyn::RobotFrame & frame_;
-  Eigen::MatrixXd jTranspose_;
+  Eigen::MatrixXd jTransposePseudoInverse_;
 
   bool compensateExternalForces_;
 
-  // void eigenToMCrtcforce();
-  // void mcrtcforceToEigen();
-
-  /** Target */
-  Eigen::Vector6d force_;
-  // std::vector<std::vector<double>> force_mc_rtc_;
-  /** Starting joint */
-  int j0_;
+  Eigen::VectorXd target_;
 };
 
 } // namespace mc_tvm

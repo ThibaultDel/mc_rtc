@@ -28,24 +28,6 @@ public:
    *
    * \param solver QP solver
    *
-   * \param frame Control frame
-   *
-   * \param weight Task weight
-   *
-   * \param compensateExternalForces If true, the task will try to compensate the external forces acting on the robot
-   *
-   */
-  ForceTask(const mc_solver::QPSolver & solver,
-            const mc_rbdyn::RobotFrame & frame,
-            double weight = 1000.0,
-            bool compensateExternalForces = false);
-
-  /*! \brief Constructor
-   *
-   * \param solver QP solver
-   *
-   * \param bodyName Name of the body to control
-   *
    * \param robots Robots controlled by this task
    *
    * \param robotIndex Index of the robot controlled by this task
@@ -56,9 +38,9 @@ public:
    *
    */
   ForceTask(const mc_solver::QPSolver & solver,
-            const std::string & bodyName,
             const mc_rbdyn::Robots & robots,
             unsigned int robotIndex,
+            Eigen::MatrixXd jTransposePseudoInverse,
             double weight = 1000.0,
             bool compensateExternalForces = false);
 
@@ -73,21 +55,21 @@ public:
    * \param dtr Change in target position
    *
    */
-  virtual void add_force(const sva::ForceVecd & dtr);
+  void addForceTarget(const Eigen::VectorXd & dtr);
 
   /*! \brief Change the target position
    *
    * \param tf New target position
    *
    */
-  virtual void set_force(const sva::ForceVecd & tf);
+  void setForceTarget(const Eigen::VectorXd & tf);
 
   /*! \brief Returns the current target positions
    *
    * \returns Current target position
    *
    */
-  virtual sva::ForceVecd get_force();
+  Eigen::VectorXd getForceTarget() const;
 
   void dimWeight(const Eigen::VectorXd & dimW) override;
 
@@ -102,6 +84,8 @@ public:
                             const std::map<std::string, std::vector<std::array<int, 2>>> & unactiveDofs = {}) override;
 
   void resetJointsSelector(mc_solver::QPSolver & solver) override;
+
+  // Eigen::VectorXd getCurrentForce() const;
 
   /** Set task's weight */
   void weight(double w);
@@ -118,6 +102,10 @@ public:
   /** True if the task is compensating external forces */
   bool isCompensatingExternalForces() const;
 
+  void setJacobianTPseudoInverse(const Eigen::MatrixXd & jTransposePseudoInverse);
+
+  Eigen::MatrixXd getJacobianTPseudoInverse() const;
+
   Eigen::VectorXd eval() const override;
 
   Eigen::VectorXd speed() const override;
@@ -129,12 +117,16 @@ public:
   void name(const std::string & name) override;
 
 private:
-  sva::ForceVecd curForce;
+  Eigen::VectorXd target_;
+  // Eigen::Vector6d targetVector_;
+  // Eigen::VectorXd curForce_;
+  // Eigen::Vector6d curForceVector_;
+
   /** True if added to solver */
   bool inSolver_ = false;
   /** Robot handled by the task */
   const mc_rbdyn::Robots & robots_;
-  const mc_rbdyn::RobotFrame & frame_;
+  Eigen::MatrixXd jTransposePseudoInverse_;
 
   unsigned int rIndex_;
   /** Holds the constraint implementation
