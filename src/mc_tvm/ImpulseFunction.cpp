@@ -98,7 +98,7 @@ void ImpulseFunction::updateJacobian()
   P_n.block<3,3>(0,0) = P_n_sub;
 
   J_ddq = j_m * P_n * full_world_frame_jacobian;              // multiplies ddq variable
-  splitJacobian(J_ddq, q_ddot_vars_);
+  splitJacobian(J_ddq, q_ddot_var_);
 }
 } // namespace mc_tvm
 
