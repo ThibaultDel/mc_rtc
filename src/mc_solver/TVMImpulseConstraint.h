@@ -33,10 +33,10 @@ struct TVMImpulseConstraint
 
   void removeFromSolver(mc_solver::TVMQPSolver & solver);
 
-  inline mc_tvm::ImpulseFunctionPtr impFunction() const{ return *static_cast<mc_tvm::ImpulseFunctionPtr *>(imp_constr_.get());}
+  mc_tvm::ImpulseFunctionPtr impFunction() const{ return *static_cast<mc_tvm::ImpulseFunctionPtr *>(imp_constr_.get());}
 
-  inline Eigen::VectorXd & LowerLimit() { return lower_limit_;}
-  inline Eigen::VectorXd & UpperLimit() { return upper_limit_;}
+  Eigen::VectorXd & LowerLimit() { return lower_limit_;}
+  Eigen::VectorXd & UpperLimit() { return upper_limit_;}
 
 
 protected:

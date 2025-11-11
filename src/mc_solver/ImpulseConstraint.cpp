@@ -44,7 +44,7 @@ void TVMImpulseConstraint::addToSolver(mc_solver::TVMQPSolver & solver)
       auto & problem = tvm_solver(solver).problem();
       mc_rtc::log::info("Size of the lower limit is {}", lower_limit_.size());
       mc_tvm::ImpulseFunctionPtr imp_fn = *static_cast<mc_tvm::ImpulseFunctionPtr *>(imp_constr_.get());
-      const auto imp = problem.add( lower_limit_ <= imp_fn <= upper_limit_, tvm::task_dynamics::Constant(), {tvm::requirements::PriorityLevel(0)});
+      auto imp = problem.add( lower_limit_ <= imp_fn <= upper_limit_, tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(0)});
       constraints_.push_back(imp);
 
 }

@@ -60,8 +60,6 @@ protected:
   void add_logs();
 
   mc_rtc::Logger & logger_;
-
-  // auto evaluation;
 };
 
 } // namespace mc_solver
