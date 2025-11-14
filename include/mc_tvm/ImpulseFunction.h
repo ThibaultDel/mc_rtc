@@ -36,17 +36,21 @@ public:
   SET_UPDATES(ImpulseFunction, Jacobian, B)
 
   /** Construct the equation of motion for a given robot */
-  ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, double delta_t, double c_res, double limit_multiplier, int axis);
+  ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal , double lambda/*, int axis*/);
 
 protected:
   void updateb();
 
+  void updateJacobian();
+
   const mc_rbdyn::Robot & robot_;
   mc_rbdyn::ConstRobotFramePtr frame_;
-  const double delta_t_;
-  const double c_res_;
-  const double limit_multiplier_;
-  const int axis_; // limited between 0 and 2, 0 = x-axis, 1 = y-axis and 2 = z-axis
+  // const double delta_t_;
+  const double lambda;
+  // const double c_res_;
+  // const double limit_multiplier_;
+  // const int axis_; // limited between 0 and 2, 0 = x-axis, 1 = y-axis and 2 = z-axis
+  const Eigen::Vector3d normal_;
 
   Eigen::MatrixXd J_ddq;
   Eigen::MatrixXd J_dq;
@@ -59,8 +63,6 @@ protected:
   /* Persisting vectors to avoid any temporary-vector lifetime issues */
   tvm::VariableVector q_ddot_vars_;
   tvm::VariableVector q_dot_vars_;
-
-  void updateJacobian();
 };
 
 using ImpulseFunctionPtr = std::shared_ptr<ImpulseFunction>;

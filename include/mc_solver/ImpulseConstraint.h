@@ -33,10 +33,12 @@ public:
   ImpulseConstraint(const mc_rbdyn::Robots & robots,
                         unsigned int robotIndex,
                         const mc_rbdyn::RobotFrame & frame,
+                        const Eigen::Vector3d normal,
+                        double lambda,
                         double delta_t,
                         double c_res,
                         double limit_multiplier,
-                        int axis,
+                        // int axis,
                         mc_rtc::Logger & logger);
 
 protected:

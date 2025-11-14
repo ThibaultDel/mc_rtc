@@ -21,21 +21,22 @@ namespace mc_solver
 
 mc_rtc::void_ptr initialize_imp_cstr(const mc_rbdyn::Robot & robot,
                                      const mc_rbdyn::RobotFrame & frame,
-                                     double delta_t,
-                                     double c_res,
-                                     double limit_multiplier,
-                                     int axis)
+                                     const Eigen::Vector3d normal,
+                                     double lambda/*,
+                                     int axis*/)
 {
-  return mc_rtc::make_void_ptr<mc_tvm::ImpulseFunctionPtr>(std::make_shared<mc_tvm::ImpulseFunction>(robot, frame, delta_t, c_res, limit_multiplier, axis));
+  return mc_rtc::make_void_ptr<mc_tvm::ImpulseFunctionPtr>(std::make_shared<mc_tvm::ImpulseFunction>(robot, frame, normal, lambda/*, axis*/));
 }
 
 TVMImpulseConstraint::TVMImpulseConstraint(const mc_rbdyn::Robot & robot,
                                                  const mc_rbdyn::RobotFrame & frame,
+                                                 const Eigen::Vector3d normal,
+                                                 double lambda,
                                                  double delta_t,
                                                  double c_res,
-                                                 double limit_multiplier,
-                                                 int axis)
-: robot_(robot), frame_(frame), delta_t_(delta_t), c_res_(c_res), limit_multiplier_(limit_multiplier), imp_constr_(initialize_imp_cstr(robot, frame, delta_t, c_res, limit_multiplier, axis)), upper_limit_(robot_.tvmRobot().limits().tu * limit_multiplier_ / (c_res_+1)), lower_limit_(robot_.tvmRobot().limits().tl * limit_multiplier_ / (c_res_+1))
+                                                 double limit_multiplier/*,
+                                                 int axis*/)
+: robot_(robot), frame_(frame), lambda_(lambda), delta_t_(delta_t), c_res_(c_res), limit_multiplier_(limit_multiplier), imp_constr_(initialize_imp_cstr(robot, frame, normal, lambda_/*, axis*/)), upper_limit_(robot_.tvmRobot().limits().tl * limit_multiplier_ * -1 *(lambda_*delta_t_/(c_res_+1))), lower_limit_(robot_.tvmRobot().limits().tu * limit_multiplier_ * -1 *(lambda_*delta_t_/(c_res_+1)))
 {
 }
 
@@ -61,19 +62,21 @@ void TVMImpulseConstraint::removeFromSolver(mc_solver::TVMQPSolver & solver)
   mimics_constraints_.clear();
 }
 
-static mc_rtc::void_ptr initialize_tvm(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, double delta_t, double c_res, double limit_multiplier, int axis)
+static mc_rtc::void_ptr initialize_tvm(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda, double delta_t, double c_res, double limit_multiplier/*, int axis*/)
 {
-  return mc_rtc::make_void_ptr<TVMImpulseConstraint>(robot, frame, delta_t, c_res, limit_multiplier, axis);
+  return mc_rtc::make_void_ptr<TVMImpulseConstraint>(robot, frame, normal, lambda, delta_t, c_res, limit_multiplier/*, axis*/);
 }
 
 static mc_rtc::void_ptr initialize(QPSolver::Backend backend,
                                    const mc_rbdyn::Robots & robots,
                                    unsigned int robotIndex,
                                    const mc_rbdyn::RobotFrame & frame,
+                                   const Eigen::Vector3d normal,
+                                   double lambda,
                                    double delta_t,
                                    double c_res,
-                                   double limit_multiplier,
-                                   int axis)
+                                   double limit_multiplier/*,
+                                   int axis*/)
 {
   switch(backend)
   {
@@ -81,14 +84,14 @@ static mc_rtc::void_ptr initialize(QPSolver::Backend backend,
       mc_rtc::log::error("No implementation for the ImpulseConstraint with the Tasks backend");
       assert(false);
     case QPSolver::Backend::TVM:
-      return initialize_tvm(robots.robot(robotIndex), frame, delta_t, c_res, limit_multiplier, axis);
+      return initialize_tvm(robots.robot(robotIndex), frame, normal, lambda, delta_t, c_res, limit_multiplier/*, axis*/);
     default:
       mc_rtc::log::error_and_throw("[ImpulseConstraint] Not implemented for solver backend: {}", backend);
   }
 }
 
-ImpulseConstraint::ImpulseConstraint(const mc_rbdyn::Robots & robots, unsigned int robotIndex, const mc_rbdyn::RobotFrame & frame, double delta_t, double c_res, double limit_multiplier, int axis, mc_rtc::Logger & logger)
-: constraint_(initialize(backend_, robots, robotIndex, frame, delta_t, c_res, limit_multiplier, axis)), logger_(logger)
+ImpulseConstraint::ImpulseConstraint(const mc_rbdyn::Robots & robots, unsigned int robotIndex, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda, double delta_t, double c_res, double limit_multiplier/*, int axis*/, mc_rtc::Logger & logger)
+: constraint_(initialize(backend_, robots, robotIndex, frame, normal, lambda, delta_t, c_res, limit_multiplier/*, axis*/)), logger_(logger)
 {
   add_logs();
 }

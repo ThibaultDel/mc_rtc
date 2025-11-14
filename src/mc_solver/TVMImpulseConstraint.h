@@ -21,13 +21,14 @@ struct TVMImpulseConstraint
 {
   const mc_rbdyn::Robot & robot_;
   mc_rbdyn::ConstRobotFramePtr frame_;
+  const double lambda_;
   const double delta_t_;
   const double c_res_;
   const double limit_multiplier_;
   std::vector<tvm::TaskWithRequirementsPtr> constraints_;
   std::vector<tvm::TaskWithRequirementsPtr> mimics_constraints_;
 
-  TVMImpulseConstraint(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, double delta_t, double c_res, double limit_multiplier, int axis);
+  TVMImpulseConstraint(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda, double delta_t, double c_res, double limit_multiplier/*, int axis*/);
 
   void addToSolver(mc_solver::TVMQPSolver & solver);
 
