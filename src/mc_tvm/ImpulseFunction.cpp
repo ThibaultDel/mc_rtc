@@ -12,9 +12,9 @@
 namespace mc_tvm
 {
 
-ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda/*, int axis*/)
-: tvm::function::abstract::LinearFunction(robot.mb().nrDof()), robot_(robot), frame_(frame), normal_(normal), lambda(lambda)/*, axis_(axis)*/
-  , jac_(frame.tvm_frame().rbdJacobian())
+ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda)
+: tvm::function::abstract::LinearFunction(robot.mb().nrDof()), robot_(robot), frame_(frame), normal_(normal), lambda(lambda)
+  , jac_(frame.tvm_frame().rbdJacobian()), coriolis_calculator_(rbd::Coriolis(robot_.mb()))
 {
   assert(frame_->robot().robotIndex() == robot_.robotIndex() && "ImpulseFunction frame must belong to the robot");
   // assert(axis_ >= 0 && axis_ < 3 && "Axis must be in [0, 2] as there are only three translational axis in the frame (1=x, 2=y, 3=z)");
@@ -29,6 +29,11 @@ ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::
   q_ddot_var_ = tvm_robot.alphaD();
   addVariable(q_ddot_var_, true);
   velocity_.setZero();
+
+  Eigen::MatrixXd P_n_sub = normal_ * normal_.transpose();
+  P_n = Eigen::Matrix<double, 6, 6>::Zero();
+  P_n.block<3,3>(0,0) = P_n_sub;
+
 }
 
 
@@ -36,7 +41,7 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
 {
   const auto & robot = robot_.tvmRobot();
   auto M = robot.H();
-  auto C = robot.C();
+  // auto C = robot.C();
 
   // Check the mass matrix before inversion (for better debugging)
   assert(M.rows() == robot_.mb().nrDof());
@@ -64,20 +69,26 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   Eigen::MatrixXd j_m_uninverted = full_world_frame_jacobian * M.inverse() * full_world_frame_jacobian.transpose();
   assert(std::abs(j_m_uninverted.determinant()) > 1e-5 && "j_m_uninverted matrix is singular");
   Eigen::MatrixXd j_m = full_world_frame_jacobian.transpose() * j_m_uninverted.inverse();
-  Eigen::MatrixXd P_n_sub = normal_ * normal_.transpose();
-  Eigen::Matrix<double, 6, 6> P_n = Eigen::Matrix<double, 6, 6>::Zero();
-  P_n.block<3,3>(0,0) = P_n_sub;
+  // Eigen::MatrixXd P_n_sub = normal_ * normal_.transpose();
+  // Eigen::Matrix<double, 6, 6> P_n = Eigen::Matrix<double, 6, 6>::Zero();
+  // P_n.block<3,3>(0,0) = P_n_sub;
 
 
   // J_dq  = j_m * P_n * full_world_frame_jacobian / delta_t_;
 
-  auto J_=full_world_frame_jacobian;
-  auto J_d_=full_world_frame_jacobian_dot;
-  auto M_d_ = C+C.transpose();
+  Eigen::MatrixXd J_=full_world_frame_jacobian;
+  Eigen::MatrixXd J_d_=full_world_frame_jacobian_dot;
 
-  auto J_dq_new = (J_d_.transpose()*j_m_uninverted.inverse() - j_m*(J_d_*M.inverse()*J_.transpose()-J_*M.inverse()*M_d_*M.inverse()*J_.transpose() + J_*M.inverse()*J_d_.transpose())*j_m_uninverted.inverse())*P_n*J_ + j_m*P_n*J_d_ + lambda*j_m*P_n*J_;
 
-  b_ = J_dq_new* tvm::dot(robot.q(), 1)->value();
+  auto C = coriolis_calculator_.coriolis(robot_.mb(), robot_.mbc());
+
+  Eigen::MatrixXd M_d_ = C+C.transpose();
+
+  Eigen::MatrixXd J_dq_new = (J_d_.transpose()*j_m_uninverted.inverse() -
+    j_m*(J_d_*M.inverse()*J_.transpose()-J_*M.inverse()*M_d_*M.inverse()*J_.transpose() +
+      J_*M.inverse()*J_d_.transpose())*j_m_uninverted.inverse())*P_n*J_ + j_m*P_n*J_d_ + lambda*j_m*P_n*J_;
+
+  b_ = J_dq_new * tvm::dot(robot.q(), 1)->value();
 }
 
 void ImpulseFunction::updateJacobian()
@@ -106,9 +117,9 @@ void ImpulseFunction::updateJacobian()
   Eigen::MatrixXd j_m_uninverted = /*full_world_frame_jacobian.transpose() * */(full_world_frame_jacobian * M.inverse() * full_world_frame_jacobian.transpose());
   assert(std::abs(j_m_uninverted.determinant()) > 1e-5 && "Mass matrix is singular");
   Eigen::MatrixXd j_m = full_world_frame_jacobian.transpose() * j_m_uninverted.inverse();
-  Eigen::MatrixXd P_n_sub = normal_ * normal_.transpose();
-  Eigen::Matrix<double, 6, 6> P_n = Eigen::Matrix<double, 6, 6>::Zero();
-  P_n.block<3,3>(0,0) = P_n_sub;
+  // Eigen::MatrixXd P_n_sub = normal_ * normal_.transpose();
+  // Eigen::Matrix<double, 6, 6> P_n = Eigen::Matrix<double, 6, 6>::Zero();
+  // P_n.block<3,3>(0,0) = P_n_sub;
 
   J_ddq = j_m * P_n * full_world_frame_jacobian;              // multiplies ddq variable
   splitJacobian(J_ddq, q_ddot_var_);

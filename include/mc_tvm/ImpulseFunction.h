@@ -12,6 +12,8 @@
 
 #include <RBDyn/Jacobian.h>
 
+#include <RBDyn/Coriolis.h>
+
 #include <SpaceVecAlg/SpaceVecAlg>
 
 namespace mc_tvm
@@ -45,17 +47,17 @@ protected:
 
   const mc_rbdyn::Robot & robot_;
   mc_rbdyn::ConstRobotFramePtr frame_;
-  // const double delta_t_;
-  const double lambda;
-  // const double c_res_;
-  // const double limit_multiplier_;
-  // const int axis_; // limited between 0 and 2, 0 = x-axis, 1 = y-axis and 2 = z-axis
   const Eigen::Vector3d normal_;
+  const double lambda;
 
   Eigen::MatrixXd J_ddq;
   Eigen::MatrixXd J_dq;
 
   rbd::Jacobian jac_;
+
+  Eigen::Matrix<double, 6, 6> P_n;
+
+  rbd::Coriolis coriolis_calculator_;
 
   /* Persisting tvm variables to avoid temporaries/dangling pointers */
   tvm::VariablePtr q_ddot_var_;
