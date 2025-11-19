@@ -16,6 +16,8 @@
 
 #include <SpaceVecAlg/SpaceVecAlg>
 
+#include <mc_tvm/Robot.h>
+
 namespace mc_tvm
 {
 
@@ -40,6 +42,14 @@ public:
   /** Construct the equation of motion for a given robot */
   ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal , double lambda/*, int axis*/);
 
+  Eigen::VectorXd & ImpulsiveTorquePrediction();
+
+  Eigen::VectorXd & ImpulsiveTorquePredictionDerivative();
+
+  tvm::VectorConstRef JointPos() { return robot_.tvmRobot().q()->value();}
+
+  tvm::VectorConstRef JointVel() { return robot_.tvmRobot().alpha()->value();}
+
 protected:
   void updateb();
 
@@ -53,6 +63,9 @@ protected:
   Eigen::MatrixXd J_ddq;
   Eigen::MatrixXd J_dq;
 
+  Eigen::VectorXd tau_imp;
+  Eigen::VectorXd tau_imp_deriv;
+
   rbd::Jacobian jac_;
 
   Eigen::Matrix<double, 6, 6> P_n;
@@ -65,6 +78,9 @@ protected:
   /* Persisting vectors to avoid any temporary-vector lifetime issues */
   tvm::VariableVector q_ddot_vars_;
   tvm::VariableVector q_dot_vars_;
+
+  bool sizes_printed;
+  bool sizes_printed2;
 };
 
 using ImpulseFunctionPtr = std::shared_ptr<ImpulseFunction>;
