@@ -105,27 +105,27 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   b_ = J_dq_new * q_d;
 
   // now add the limits termwise, lambda*sng(tau_I_max - tau_I)*sqrt(tau_I_max - tau_I)
-  // tau_imp_act = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_*q_d;
-  // assert(b_.size() == robot_.mb().nrDof());
-  // assert(limit_.size() == robot_.mb().nrDof());
-  // assert(tau_imp.size() == robot_.mb().nrDof());
-  // for (int i = 0; i < b_.size(); ++i)
-  // {
-  //   double tau_limit = limit_(i);
-  //   double tau_I = tau_imp_act(i);
-  //   double diff = tau_I - tau_limit;
-  //   if (diff >= 0)
-  //   {
-  //     b_(i) += lambda_high*/*std::sqrt*/(diff);
-  //     lambda(i) = lambda_high;
-  //     // b_(i) += tau_I * lambda_low; // Added small term to avoid division by zero
-  //   } else
-  //   {
-  //     b_(i) -= lambda_low*/*std::sqrt*/(-1.f*diff);
-  //     lambda(i) = lambda_low;
-  //     // b_(i) += tau_I * lambda_low; // Added small term to avoid division by zero
-  //   }
-  // }
+  tau_imp_act = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_*q_d;
+  assert(b_.size() == robot_.mb().nrDof());
+  assert(limit_.size() == robot_.mb().nrDof());
+  assert(tau_imp.size() == robot_.mb().nrDof());
+  for (int i = 0; i < b_.size(); ++i)
+  {
+    double tau_limit = limit_(i);
+    double tau_I = tau_imp_act(i);
+    double diff = tau_I - tau_limit;
+    if (diff >= 0)
+    {
+      b_(i) += lambda_high*/*std::sqrt*/(diff);
+      lambda(i) = lambda_high;
+      // b_(i) += tau_I * lambda_low; // Added small term to avoid division by zero
+    } else
+    {
+      b_(i) -= lambda_low*/*std::sqrt*/(-1.f*diff);
+      lambda(i) = lambda_low;
+      // b_(i) += tau_I * lambda_low; // Added small term to avoid division by zero
+    }
+  }
 
   // These are now used as constants but if used in a final version should be taken in initialization from input parameters
   double timestep = 0.002;
