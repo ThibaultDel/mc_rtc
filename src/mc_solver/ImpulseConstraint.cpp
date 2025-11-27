@@ -22,20 +22,30 @@ namespace mc_solver
 mc_rtc::void_ptr initialize_imp_cstr(const mc_rbdyn::Robot & robot,
                                      const mc_rbdyn::RobotFrame & frame,
                                      const Eigen::Vector3d normal,
-                                     double lambda)
+                                     double lambda_high,
+                                     double lambda_low,
+                                     double c_res,
+                                     double delta_t,
+                                     const Eigen::VectorXd & limit)
 {
-  return mc_rtc::make_void_ptr<mc_tvm::ImpulseFunctionPtr>(std::make_shared<mc_tvm::ImpulseFunction>(robot, frame, normal, lambda));
+  return mc_rtc::make_void_ptr<mc_tvm::ImpulseFunctionPtr>(std::make_shared<mc_tvm::ImpulseFunction>(robot, frame, normal, lambda_high, lambda_low, c_res, delta_t,
+                                                                                                      limit));
 }
 
 TVMImpulseConstraint::TVMImpulseConstraint(const mc_rbdyn::Robot & robot,
                                                  const mc_rbdyn::RobotFrame & frame,
                                                  const Eigen::Vector3d normal,
-                                                 double lambda,
+                                                 double lambda_high,
+                                                 double lambda_low,
                                                  double delta_t,
                                                  double c_res,
                                                  double limit_multiplier)
-: robot_(robot), frame_(frame), lambda_(lambda), delta_t_(delta_t), c_res_(c_res),
-  limit_multiplier_(limit_multiplier), imp_constr_(initialize_imp_cstr(robot, frame, normal, lambda_)),
+: robot_(robot), frame_(frame), lambda_high_(lambda_high), lambda_low_(lambda_low), delta_t_(delta_t), c_res_(c_res),
+  limit_multiplier_(limit_multiplier),
+  const_upper_limit_(robot_.tvmRobot().limits().tu * limit_multiplier_),
+  const_lower_limit_(robot_.tvmRobot().limits().tl * limit_multiplier_),
+  imp_constr_lower_(initialize_imp_cstr(robot, frame, normal, lambda_low_, lambda_high_, c_res, delta_t, const_lower_limit_)),
+  imp_constr_upper_(initialize_imp_cstr(robot, frame, normal, lambda_high_, lambda_low_, c_res, delta_t, const_upper_limit_)),
   upper_limit_(robot_.tvmRobot().limits().tu * limit_multiplier_ * (delta_t_/(c_res_+1.f))),
   lower_limit_(robot_.tvmRobot().limits().tl * limit_multiplier_ * (delta_t_/(c_res_+1.f)))
 {
@@ -47,9 +57,12 @@ void TVMImpulseConstraint::addToSolver(mc_solver::TVMQPSolver & solver)
 {
       auto & problem = tvm_solver(solver).problem();
       mc_rtc::log::info("Size of the lower limit is {}", lower_limit_.size());
-      mc_tvm::ImpulseFunctionPtr imp_fn = *static_cast<mc_tvm::ImpulseFunctionPtr *>(imp_constr_.get());
-      auto imp = problem.add( lower_limit_ <= imp_fn <= upper_limit_, tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(0)});
-      constraints_.push_back(imp);
+      mc_tvm::ImpulseFunctionPtr imp_fn_up = *static_cast<mc_tvm::ImpulseFunctionPtr *>(imp_constr_upper_.get());
+      mc_tvm::ImpulseFunctionPtr imp_fn_low = *static_cast<mc_tvm::ImpulseFunctionPtr *>(imp_constr_lower_.get());
+      auto imp_up = problem.add( imp_fn_up <= 0.0/*robot_.tvmRobot().limits().tu * limit_multiplier_ * lambda_low_*/, tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(0)});
+      auto imp_low = problem.add( imp_fn_low >= 0.0/*robot_.tvmRobot().limits().tl * limit_multiplier_ * lambda_low_*/, tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(0)});
+      constraints_.push_back(imp_up);
+      constraints_.push_back(imp_low);
 }
 
 void TVMImpulseConstraint::removeFromSolver(mc_solver::TVMQPSolver & solver)
@@ -64,9 +77,9 @@ void TVMImpulseConstraint::removeFromSolver(mc_solver::TVMQPSolver & solver)
   mimics_constraints_.clear();
 }
 
-static mc_rtc::void_ptr initialize_tvm(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda, double delta_t, double c_res, double limit_multiplier)
+static mc_rtc::void_ptr initialize_tvm(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double delta_t, double c_res, double limit_multiplier)
 {
-  return mc_rtc::make_void_ptr<TVMImpulseConstraint>(robot, frame, normal, lambda, delta_t, c_res, limit_multiplier);
+  return mc_rtc::make_void_ptr<TVMImpulseConstraint>(robot, frame, normal, lambda_high, lambda_low, delta_t, c_res, limit_multiplier);
 }
 
 static mc_rtc::void_ptr initialize(QPSolver::Backend backend,
@@ -74,7 +87,8 @@ static mc_rtc::void_ptr initialize(QPSolver::Backend backend,
                                    unsigned int robotIndex,
                                    const mc_rbdyn::RobotFrame & frame,
                                    const Eigen::Vector3d normal,
-                                   double lambda,
+                                   double lambda_high,
+                                   double lambda_low,
                                    double delta_t,
                                    double c_res,
                                    double limit_multiplier)
@@ -85,14 +99,14 @@ static mc_rtc::void_ptr initialize(QPSolver::Backend backend,
       mc_rtc::log::error("No implementation for the ImpulseConstraint with the Tasks backend");
       assert(false);
     case QPSolver::Backend::TVM:
-      return initialize_tvm(robots.robot(robotIndex), frame, normal, lambda, delta_t, c_res, limit_multiplier);
+      return initialize_tvm(robots.robot(robotIndex), frame, normal, lambda_high, lambda_low, delta_t, c_res, limit_multiplier);
     default:
       mc_rtc::log::error_and_throw("[ImpulseConstraint] Not implemented for solver backend: {}", backend);
   }
 }
 
-ImpulseConstraint::ImpulseConstraint(const mc_rbdyn::Robots & robots, unsigned int robotIndex, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda, double delta_t, double c_res, double limit_multiplier, mc_rtc::Logger & logger)
-: constraint_(initialize(backend_, robots, robotIndex, frame, normal, lambda, delta_t, c_res, limit_multiplier)), logger_(logger)
+ImpulseConstraint::ImpulseConstraint(const mc_rbdyn::Robots & robots, unsigned int robotIndex, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double delta_t, double c_res, double limit_multiplier, mc_rtc::Logger & logger)
+: constraint_(initialize(backend_, robots, robotIndex, frame, normal, lambda_high, lambda_low, delta_t, c_res, limit_multiplier)), logger_(logger)
 {
   add_logs();
 }
@@ -134,7 +148,13 @@ void ImpulseConstraint::removeFromSolverImpl(mc_solver::QPSolver & solver)
 void ImpulseConstraint::add_logs()
 {
   logger_.addLogEntry("ImpulseConstraintEvaluation", this, [&, this]()
-  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->value();});
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->value();});
+
+  logger_.addLogEntry("Elementwise_lambda_low", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->EffectiveLambda();});
+
+  logger_.addLogEntry("Elementwise_lambda_high", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionHigh()->EffectiveLambda();});
 
   logger_.addLogEntry("ImpulseConstraintLowerlimit", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->LowerLimit();});
@@ -149,7 +169,7 @@ void ImpulseConstraint::add_logs()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ImpulsiveTorqures2();});
 
   logger_.addLogEntry("PredictedImpulsiveTorqueIntegrated", this, [&, this]()
-  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->ImpulsiveTorquePredictionConstraint();});
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ImpulsiveTorquePredictionConstraint();});
 
   logger_.addLogEntry("ActualPredictedImpulsiveTorque", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ActualImpulsiveTorqures();});
@@ -158,7 +178,7 @@ void ImpulseConstraint::add_logs()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ImpulsiveTorquresDerivative();});
 
   logger_.addLogEntry("PredictedImpulsiveTorqueDerivativeNumerical", this, [&, this]()
-  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->ImpulsiveTorquePredictionDerivativeNum();});
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ImpulsiveTorquePredictionDerivativeNum();});
 
   logger_.addLogEntry("PredictedImpulsiveTorqueDerivative_term1", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ImpulsiveTorquresDerivative_term1();});
@@ -185,7 +205,7 @@ void ImpulseConstraint::add_logs()
 
   // the value used to determine s in the passivity plugin, also in integral_of_reference_acceleration in MyPluginPassivityHumanoid
   logger_.addLogEntry("TVM_alphas", this, [&, this]()
-  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->JointVels();});
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->JointVels();});
 
   // equal to alphaDOut
   // logger_.addLogEntry("TVM_alphaD", this, [&, this]()
@@ -193,7 +213,7 @@ void ImpulseConstraint::add_logs()
 
   // Does not give any value for some reason
   logger_.addLogEntry("TVM_qd", this, [&, this]()
-  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->JointVelUsed();});
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->JointVelUsed();});
 
   // This is alphaDOut
   // logger_.addLogEntry("TVM_qdd", this, [&, this]()
@@ -201,14 +221,14 @@ void ImpulseConstraint::add_logs()
 
   // this is the numerical derivative of joint velocities AlphaIn
   logger_.addLogEntry("qdd_num", this, [&, this]()
-  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->JointAccNum();});
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->JointAccNum();});
 }
 
 Eigen::VectorXd & TVMImpulseConstraint::RightSideLower()
 {
   Eigen::VectorXd lower_lim = robot_.tvmRobot().limits().tl*limit_multiplier_;
   Eigen::VectorXd impulsive_torques = ((c_res_+1.f)/delta_t_)*ImpulsiveTorqures();
-  lower = lambda_ * (lower_lim - impulsive_torques);
+  lower = lambda_low_ * (lower_lim - impulsive_torques);
   return lower; // lambda_*(robot_.tvmRobot().limits().tl-ImpulsiveTorqures());
 }
 
@@ -216,7 +236,7 @@ Eigen::VectorXd & TVMImpulseConstraint::RightSideUpper()
 {
   Eigen::VectorXd upper_lim = robot_.tvmRobot().limits().tu*limit_multiplier_;
   Eigen::VectorXd impulsive_torques = ((c_res_+1.f)/delta_t_)*ImpulsiveTorqures();
-  upper = lambda_ * (upper_lim - impulsive_torques);
+  upper = lambda_low_ * (upper_lim - impulsive_torques);
   return upper; // lambda_*(robot_.tvmRobot().limits().tl-ImpulsiveTorqures());
   Eigen::VectorXd acc_liit = robot_.tvmRobot().limits().tu;
 }

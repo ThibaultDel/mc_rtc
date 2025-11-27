@@ -11,8 +11,8 @@
 namespace mc_tvm
 {
 
-ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda)
-: tvm::function::abstract::LinearFunction(robot.mb().nrDof()), robot_(robot), frame_(frame), normal_(normal), lambda(lambda)
+ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double c_res, double delta_t, const Eigen::VectorXd & limit)
+: tvm::function::abstract::LinearFunction(robot.mb().nrDof()), robot_(robot), frame_(frame), normal_(normal), lambda_high(lambda_high), lambda_low(lambda_low), c_res_(c_res), delta_t_(delta_t), limit_(limit)
   , jac_(frame.tvm_frame().rbdJacobian()), coriolis_calculator_(rbd::Coriolis(robot_.mb()))
 {
   assert(frame_->robot().robotIndex() == robot_.robotIndex() && "ImpulseFunction frame must belong to the robot");
@@ -56,6 +56,7 @@ ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::
 
   alpha_s_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
   q_d = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+  lambda = Eigen::VectorXd::Zero(robot_.mb().nrDof());
 
 }
 
@@ -95,17 +96,38 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
 
   Eigen::MatrixXd M_d_ = C+C.transpose();
 
-  Eigen::MatrixXd J_dq_new = (-1.f/lambda)*(J_d_.transpose()*j_m_uninverted.inverse() -
+  Eigen::MatrixXd J_dq_new = (-1.f) * ((c_res_+1.f)/(delta_t_/**lambda*/)) *(J_d_.transpose()*j_m_uninverted.inverse() -
     j_m*(J_d_*M.inverse()*J_.transpose()-J_*M.inverse()*M_d_*M.inverse()*J_.transpose() +
-      J_*M.inverse()*J_d_.transpose())*j_m_uninverted.inverse())*P_n*J_ + (-1.f/lambda)*j_m*P_n*J_d_ - j_m*P_n*J_;
+      J_*M.inverse()*J_d_.transpose())*j_m_uninverted.inverse())*P_n*J_ +  (-1.f) * ((c_res_+1.f)/(delta_t_/**lambda*/)) *j_m*P_n*J_d_;// - j_m*P_n*J_;
 
   q_d = tvm::dot(robot.q(),1)->value();
 
   b_ = J_dq_new * q_d;
 
+  // now add the limits termwise, lambda*sng(tau_I_max - tau_I)*sqrt(tau_I_max - tau_I)
+  // tau_imp_act = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_*q_d;
+  // assert(b_.size() == robot_.mb().nrDof());
+  // assert(limit_.size() == robot_.mb().nrDof());
+  // assert(tau_imp.size() == robot_.mb().nrDof());
+  // for (int i = 0; i < b_.size(); ++i)
+  // {
+  //   double tau_limit = limit_(i);
+  //   double tau_I = tau_imp_act(i);
+  //   double diff = tau_I - tau_limit;
+  //   if (diff >= 0)
+  //   {
+  //     b_(i) += lambda_high*/*std::sqrt*/(diff);
+  //     lambda(i) = lambda_high;
+  //     // b_(i) += tau_I * lambda_low; // Added small term to avoid division by zero
+  //   } else
+  //   {
+  //     b_(i) -= lambda_low*/*std::sqrt*/(-1.f*diff);
+  //     lambda(i) = lambda_low;
+  //     // b_(i) += tau_I * lambda_low; // Added small term to avoid division by zero
+  //   }
+  // }
+
   // These are now used as constants but if used in a final version should be taken in initialization from input parameters
-  double cres = 1;
-  double delta_t_ = 0.001;
   double timestep = 0.002;
 
   // Take the numerical derivative of the joint velocities
@@ -116,21 +138,21 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
 
   tau_imp2 = -1.f*j_m*P_n*J_*alpha_s_;
   tau_imp = -1.f*j_m*P_n*J_*q_d;
-  tau_imp_act = (-1.f*(cres+1)/delta_t_)*j_m*P_n*J_*q_d;
-  tau_imp_deriv = (-1.f*(cres+1)/delta_t_)*((J_d_.transpose()*j_m_uninverted.inverse() -
+  // tau_imp_act = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_*q_d;
+  tau_imp_deriv = (-1.f*(c_res_+1)/delta_t_)*((J_d_.transpose()*j_m_uninverted.inverse() -
     j_m*(J_d_*M.inverse()*J_.transpose()-J_*M.inverse()*M_d_*M.inverse()*J_.transpose() +
     J_*M.inverse()*J_d_.transpose())*j_m_uninverted.inverse())*P_n*J_ * tvm::dot(robot.q(), 1)->value()
     + j_m*P_n*(J_d_ * tvm::dot(robot.q(), 1)->value() + J_ * tvm::dot(robot.q(), 2)->value()));
 
-  tau_imp_const += (delta_t_/(cres+1))*tau_imp_deriv * 0.002;
+  tau_imp_const += (delta_t_/(c_res_+1))*tau_imp_deriv * 0.002;
 
-  tau_imp_deriv_term1 = (-1.f*(cres+1)/delta_t_)*((J_d_.transpose()*j_m_uninverted.inverse() -
+  tau_imp_deriv_term1 = (-1.f*(c_res_+1)/delta_t_)*((J_d_.transpose()*j_m_uninverted.inverse() -
     j_m*(J_d_*M.inverse()*J_.transpose()-J_*M.inverse()*M_d_*M.inverse()*J_.transpose() +
     J_*M.inverse()*J_d_.transpose())*j_m_uninverted.inverse())*P_n*J_ * q_d);
-  tau_imp_deriv_term2 = (-1.f*(cres+1)/delta_t_)*j_m*P_n*J_d_ * q_d;
-  tau_imp_deriv_term3 = (-1.f*(cres+1)/delta_t_)*j_m*P_n*J_ * tvm::dot(robot.q(), 2)->value();
+  tau_imp_deriv_term2 = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_d_ * q_d;
+  tau_imp_deriv_term3 = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_ * tvm::dot(robot.q(), 2)->value();
 
-  tau_imp_deriv_num = (-1.f*(cres+1)/delta_t_)*((J_d_.transpose()*j_m_uninverted.inverse() -
+  tau_imp_deriv_num = (-1.f*(c_res_+1)/delta_t_)*((J_d_.transpose()*j_m_uninverted.inverse() -
     j_m*(J_d_*M.inverse()*J_.transpose()-J_*M.inverse()*M_d_*M.inverse()*J_.transpose() +
     J_*M.inverse()*J_d_.transpose())*j_m_uninverted.inverse())*P_n*J_ * q_d
     + j_m*P_n*(J_d_ * q_d + J_ * num_qdd));
@@ -162,42 +184,7 @@ void ImpulseFunction::updateJacobian()
 
 Eigen::MatrixXd j_m = full_world_frame_jacobian.transpose() * j_m_uninverted.inverse();
 
-  // // Get the average acceleration error
-  // Eigen::VectorXd current_acc = robot_.tvmRobot().alphaD()->value();
-  // assert(current_acc.size() == num_qdd.size());
-  //
-  // Eigen::VectorXd acc_error = Eigen::VectorXd::Zero(robot_.mb().nrDof()); // num_qdd.cwiseQuotient(current_acc);
-  // for (int i = 0; i < current_acc.size(); ++i)
-  // {
-  //   if(std::abs(current_acc(i)) > 1e-6)
-  //   {
-  //     acc_error(i) = num_qdd(i) / current_acc(i);
-  //   }
-  //   else
-  //   {
-  //     acc_error(i) = 1.0;
-  //   }
-  //   if(acc_error(i) < 0.3)
-  //   {
-  //     acc_error(i) = 0.3;
-  //   } else if (acc_error(i) > 4.0)
-  //   {
-  //     acc_error(i) = 4.0;
-  //   }
-  // }
-  // acc_error_window_.push_back(acc_error);
-  // if (acc_error_window_.size() > acc_error_window_size_) {
-  //   acc_error_window_.erase(acc_error_window_.begin());
-  // }
-  // assert(acc_error_window_.size() == acc_error_window_size_);
-  // Eigen::VectorXd sum = Eigen::VectorXd::Zero(robot_.mb().nrDof());
-  // for (auto i : acc_error_window_)
-  // {
-  //   sum += i;
-  // }
-  // Eigen::VectorXd average_error = sum / acc_error_window_.size();
-
-  J_ddq = /*average_error.asDiagonal()**/((-1.f/lambda) * j_m * P_n * full_world_frame_jacobian);// + 0.5*0.002*J_dq_new;              // multiplies ddq variable
+  J_ddq = -1.f * ((c_res_+1.f)/(delta_t_/**lambda*/)) * j_m * P_n * full_world_frame_jacobian;// + 0.5*0.002*J_dq_new;              // multiplies ddq variable
   // J_ddq = -1.f * j_m * P_n * full_world_frame_jacobian;              // multiplies ddq variable
 
 

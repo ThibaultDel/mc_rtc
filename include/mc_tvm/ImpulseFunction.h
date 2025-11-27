@@ -40,7 +40,9 @@ public:
   SET_UPDATES(ImpulseFunction, Jacobian, B)
 
   /** Construct the equation of motion for a given robot */
-  ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal , double lambda/*, int axis*/);
+  ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal , double lambda_high, double lambda_low, double c_res, double delta_t, const Eigen::VectorXd & limit);
+
+  Eigen::VectorXd & EffectiveLambda(){ return lambda; }
 
   Eigen::VectorXd & ImpulsiveTorquePrediction(){ return tau_imp; }
 
@@ -82,7 +84,12 @@ protected:
   const mc_rbdyn::Robot & robot_;
   mc_rbdyn::ConstRobotFramePtr frame_;
   const Eigen::Vector3d normal_;
-  const double lambda;
+  // const double lambda;
+  const double lambda_high;
+  const double lambda_low;
+  const double c_res_;
+  const double delta_t_;
+  const Eigen::VectorXd & limit_;
 
   Eigen::MatrixXd J_ddq;
   Eigen::MatrixXd J_dq;
@@ -93,6 +100,8 @@ protected:
   Eigen::VectorXd alpha_d;
   Eigen::VectorXd q_d;
   Eigen::VectorXd q_dd;
+
+  Eigen::VectorXd lambda;
 
   Eigen::VectorXd tau_imp;
   Eigen::VectorXd tau_imp2;
