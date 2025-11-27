@@ -145,8 +145,29 @@ void ImpulseConstraint::add_logs()
   logger_.addLogEntry("PredictedImpulsiveTorque", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ImpulsiveTorqures();});
 
+  logger_.addLogEntry("PredictedImpulsiveTorque2", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ImpulsiveTorqures2();});
+
+  logger_.addLogEntry("PredictedImpulsiveTorqueIntegrated", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->ImpulsiveTorquePredictionConstraint();});
+
+  logger_.addLogEntry("ActualPredictedImpulsiveTorque", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ActualImpulsiveTorqures();});
+
   logger_.addLogEntry("PredictedImpulsiveTorqueDerivative", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ImpulsiveTorquresDerivative();});
+
+  logger_.addLogEntry("PredictedImpulsiveTorqueDerivativeNumerical", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->ImpulsiveTorquePredictionDerivativeNum();});
+
+  logger_.addLogEntry("PredictedImpulsiveTorqueDerivative_term1", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ImpulsiveTorquresDerivative_term1();});
+
+  logger_.addLogEntry("PredictedImpulsiveTorqueDerivative_term2", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ImpulsiveTorquresDerivative_term2();});
+
+  logger_.addLogEntry("PredictedImpulsiveTorqueDerivative_term3", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ImpulsiveTorquresDerivative_term3();});
 
   logger_.addLogEntry("ConstraintRightSideUpper", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->RightSideUpper();});
@@ -154,11 +175,33 @@ void ImpulseConstraint::add_logs()
   logger_.addLogEntry("ConstraintRightSideLower", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->RightSideLower();});
 
-  logger_.addLogEntry("Usable_Joint_Position", this, [&, this]()
-  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->JointPos();});
+  // equal to qIn and qOut
+  // logger_.addLogEntry("TVM_q", this, [&, this]()
+  // {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->JointPos();});
 
-  logger_.addLogEntry("Usable_Joint_Velocity", this, [&, this]()
-  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->JointVel();});
+  // Does not give any value for some reason
+  // logger_.addLogEntry("TVM_alpha", this, [&, this]()
+  // {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->JointVel();});
+
+  // the value used to determine s in the passivity plugin, also in integral_of_reference_acceleration in MyPluginPassivityHumanoid
+  logger_.addLogEntry("TVM_alphas", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->JointVels();});
+
+  // equal to alphaDOut
+  // logger_.addLogEntry("TVM_alphaD", this, [&, this]()
+  // {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->JointAcc();});
+
+  // Does not give any value for some reason
+  logger_.addLogEntry("TVM_qd", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->JointVelUsed();});
+
+  // This is alphaDOut
+  // logger_.addLogEntry("TVM_qdd", this, [&, this]()
+  // {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->JointAccUsed();});
+
+  // this is the numerical derivative of joint velocities AlphaIn
+  logger_.addLogEntry("qdd_num", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->JointAccNum();});
 }
 
 Eigen::VectorXd & TVMImpulseConstraint::RightSideLower()

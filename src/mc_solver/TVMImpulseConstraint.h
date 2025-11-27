@@ -43,9 +43,12 @@ struct TVMImpulseConstraint
   Eigen::VectorXd & RightSideUpper(); // { return lambda_*(robot_.tvmRobot().limits().tu-ImpulsiveTorqures());}
 
   Eigen::VectorXd & ImpulsiveTorqures() { return impFunction()->ImpulsiveTorquePrediction();}
+  Eigen::VectorXd & ImpulsiveTorqures2() { return impFunction()->ImpulsiveTorquePrediction2();}
+  Eigen::VectorXd & ActualImpulsiveTorqures() { return impFunction()->ActualImpulsiveTorquePrediction();}
   Eigen::VectorXd & ImpulsiveTorquresDerivative() { return impFunction()->ImpulsiveTorquePredictionDerivative();}
-
-
+  Eigen::VectorXd & ImpulsiveTorquresDerivative_term1() { return impFunction()->ImpulsiveTorquePredictionDerivative_term1();}
+  Eigen::VectorXd & ImpulsiveTorquresDerivative_term2() { return impFunction()->ImpulsiveTorquePredictionDerivative_term2();}
+  Eigen::VectorXd & ImpulsiveTorquresDerivative_term3() { return impFunction()->ImpulsiveTorquePredictionDerivative_term3();}
 
 protected:
   mc_rtc::void_ptr imp_constr_;

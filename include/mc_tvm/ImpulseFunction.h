@@ -42,13 +42,37 @@ public:
   /** Construct the equation of motion for a given robot */
   ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal , double lambda/*, int axis*/);
 
-  Eigen::VectorXd & ImpulsiveTorquePrediction();
+  Eigen::VectorXd & ImpulsiveTorquePrediction(){ return tau_imp; }
 
-  Eigen::VectorXd & ImpulsiveTorquePredictionDerivative();
+  Eigen::VectorXd & ImpulsiveTorquePrediction2(){ return tau_imp2; }
 
-  tvm::VectorConstRef JointPos() { return robot_.tvmRobot().q()->value();}
+  Eigen::VectorXd & ImpulsiveTorquePredictionConstraint(){ return tau_imp_const; }
 
-  tvm::VectorConstRef JointVel() { return robot_.tvmRobot().alpha()->value();}
+  Eigen::VectorXd & ActualImpulsiveTorquePrediction(){ return tau_imp_act; }
+
+  Eigen::VectorXd & ImpulsiveTorquePredictionDerivative(){ return tau_imp_deriv; }
+
+  Eigen::VectorXd & ImpulsiveTorquePredictionDerivativeNum(){ return tau_imp_deriv_num; }
+
+  Eigen::VectorXd & ImpulsiveTorquePredictionDerivative_term1(){ return tau_imp_deriv_term1; }
+
+  Eigen::VectorXd & ImpulsiveTorquePredictionDerivative_term2(){ return tau_imp_deriv_term2; }
+
+  Eigen::VectorXd & ImpulsiveTorquePredictionDerivative_term3(){ return tau_imp_deriv_term3; }
+
+  Eigen::VectorXd & JointPos();
+
+  Eigen::VectorXd & JointVel();
+
+  Eigen::VectorXd & JointVels();
+
+  Eigen::VectorXd & JointVelUsed();
+
+  Eigen::VectorXd & JointAcc();
+
+  Eigen::VectorXd & JointAccUsed();
+
+  Eigen::VectorXd & JointAccNum();
 
 protected:
   void updateb();
@@ -63,8 +87,29 @@ protected:
   Eigen::MatrixXd J_ddq;
   Eigen::MatrixXd J_dq;
 
+  Eigen::VectorXd q;
+  Eigen::VectorXd alpha;
+  Eigen::VectorXd alpha_s_;
+  Eigen::VectorXd alpha_d;
+  Eigen::VectorXd q_d;
+  Eigen::VectorXd q_dd;
+
   Eigen::VectorXd tau_imp;
+  Eigen::VectorXd tau_imp2;
+  Eigen::VectorXd tau_imp_const;
+  Eigen::VectorXd tau_imp_act;
   Eigen::VectorXd tau_imp_deriv;
+  Eigen::VectorXd tau_imp_deriv_num;
+  Eigen::VectorXd tau_imp_deriv_term1;
+  Eigen::VectorXd tau_imp_deriv_term2;
+  Eigen::VectorXd tau_imp_deriv_term3;
+
+  Eigen::VectorXd last_joint_velocities_;
+  Eigen::VectorXd num_qdd;
+
+  // Implement a moving average filter on the acceleration error
+  // std::vector<Eigen::VectorXd> acc_error_window_;
+  // int acc_error_window_size_ = 3;
 
   rbd::Jacobian jac_;
 
@@ -74,13 +119,7 @@ protected:
 
   /* Persisting tvm variables to avoid temporaries/dangling pointers */
   tvm::VariablePtr q_ddot_var_;
-  tvm::VariablePtr q_dot_var_;
-  /* Persisting vectors to avoid any temporary-vector lifetime issues */
-  tvm::VariableVector q_ddot_vars_;
-  tvm::VariableVector q_dot_vars_;
 
-  bool sizes_printed;
-  bool sizes_printed2;
 };
 
 using ImpulseFunctionPtr = std::shared_ptr<ImpulseFunction>;
