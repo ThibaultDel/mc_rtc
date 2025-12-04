@@ -40,46 +40,50 @@ public:
   SET_UPDATES(ImpulseFunction, Jacobian, B)
 
   /** Construct the equation of motion for a given robot */
-  ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal , double lambda_high, double lambda_low, double c_res, double delta_t, const Eigen::VectorXd & limit);
+  ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal , double lambda_high, double lambda_low, double c_res, double delta_t, const Eigen::VectorXd & limit_high, const Eigen::VectorXd & limit_low, bool enforce_high_limit);
 
   Eigen::VectorXd & EffectiveLambda(){ return lambda; }
 
   Eigen::VectorXd & ImpulsiveTorquePrediction(){ return tau_imp; }
 
-  Eigen::VectorXd & ImpulsiveTorquePrediction2(){ return tau_imp2; }
-
-  Eigen::VectorXd & ImpulsiveTorquePredictionConstraint(){ return tau_imp_const; }
-
+  // Eigen::VectorXd & ImpulsiveTorquePrediction2(){ return tau_imp2; }
+  //
+  // Eigen::VectorXd & ImpulsiveTorquePredictionConstraint(){ return tau_imp_const; }
+  //
   Eigen::VectorXd & ActualImpulsiveTorquePrediction(){ return tau_imp_act; }
 
   Eigen::VectorXd & ImpulsiveTorquePredictionDerivative(){ return tau_imp_deriv; }
 
   Eigen::VectorXd & ImpulsiveTorquePredictionDerivativeNum(){ return tau_imp_deriv_num; }
 
-  Eigen::VectorXd & ImpulsiveTorquePredictionDerivative_term1(){ return tau_imp_deriv_term1; }
+  // Eigen::VectorXd & ImpulsiveTorquePredictionDerivative_term1(){ return tau_imp_deriv_term1; }
+  //
+  // Eigen::VectorXd & ImpulsiveTorquePredictionDerivative_term2(){ return tau_imp_deriv_term2; }
+  //
+  // Eigen::VectorXd & ImpulsiveTorquePredictionDerivative_term3(){ return tau_imp_deriv_term3; }
 
-  Eigen::VectorXd & ImpulsiveTorquePredictionDerivative_term2(){ return tau_imp_deriv_term2; }
-
-  Eigen::VectorXd & ImpulsiveTorquePredictionDerivative_term3(){ return tau_imp_deriv_term3; }
-
-  Eigen::VectorXd & JointPos();
-
-  Eigen::VectorXd & JointVel();
-
-  Eigen::VectorXd & JointVels();
-
-  Eigen::VectorXd & JointVelUsed();
+  // Eigen::VectorXd & JointPos();
+  //
+  // Eigen::VectorXd & JointVel();
+  //
+  // Eigen::VectorXd & JointVels();
+  //
+  // Eigen::VectorXd & JointVelUsed();
 
   Eigen::VectorXd & JointAcc();
 
-  Eigen::VectorXd & JointAccUsed();
+  // Eigen::VectorXd & JointAccUsed();
 
   Eigen::VectorXd & JointAccNum();
+
+  Eigen::VectorXd & RightSide(){ return constraint_right_side_; }
 
 protected:
   void updateb();
 
   void updateJacobian();
+
+  void getLambda();
 
   const mc_rbdyn::Robot & robot_;
   mc_rbdyn::ConstRobotFramePtr frame_;
@@ -89,7 +93,17 @@ protected:
   const double lambda_low;
   const double c_res_;
   const double delta_t_;
-  const Eigen::VectorXd & limit_;
+  const Eigen::VectorXd & limit_high_;
+  const Eigen::VectorXd & limit_low_;
+  const bool enforce_high_limit_;
+
+  Eigen::VectorXd diff_upper_;
+  Eigen::VectorXd diff_lower_;
+  bool high_lambda_latch_ = false;
+  int high_lambda_latch_count_ = 0;
+  const int high_lambda_latch_max_ = 10;
+  const double limit_multiplier_ = 0.8;
+  const int lambda_growing_steps = 10;
 
   Eigen::MatrixXd J_ddq;
   Eigen::MatrixXd J_dq;
@@ -116,6 +130,8 @@ protected:
   Eigen::VectorXd last_joint_velocities_;
   Eigen::VectorXd num_qdd;
 
+  Eigen::VectorXd constraint_right_side_;
+
   // Implement a moving average filter on the acceleration error
   // std::vector<Eigen::VectorXd> acc_error_window_;
   // int acc_error_window_size_ = 3;
@@ -127,7 +143,8 @@ protected:
   rbd::Coriolis coriolis_calculator_;
 
   /* Persisting tvm variables to avoid temporaries/dangling pointers */
-  tvm::VariablePtr q_ddot_var_;
+  // tvm::VariablePtr q_ddot_var_;
+  // tvm::VariablePtr q_dot_var_;
 
 };
 

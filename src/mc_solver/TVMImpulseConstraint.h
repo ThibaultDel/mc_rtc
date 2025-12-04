@@ -35,29 +35,29 @@ struct TVMImpulseConstraint
 
   void removeFromSolver(mc_solver::TVMQPSolver & solver);
 
-  mc_tvm::ImpulseFunctionPtr impFunctionLow() const{ return *static_cast<mc_tvm::ImpulseFunctionPtr *>(imp_constr_lower_.get());}
-  mc_tvm::ImpulseFunctionPtr impFunctionHigh() const{ return *static_cast<mc_tvm::ImpulseFunctionPtr *>(imp_constr_upper_.get());}
+  mc_tvm::ImpulseFunctionPtr impFunctionLow() const{ return imp_constr_lower_;}
+  mc_tvm::ImpulseFunctionPtr impFunctionHigh() const{ return imp_constr_upper_;}
 
-  Eigen::VectorXd & LowerLimit() { return lower_limit_;}
-  Eigen::VectorXd & UpperLimit() { return upper_limit_;}
+  const Eigen::VectorXd & LowerLimit() { return const_lower_limit_;}
+  const Eigen::VectorXd & UpperLimit() { return const_upper_limit_;}
 
-  Eigen::VectorXd & RightSideLower(); // { return lambda_*(robot_.tvmRobot().limits().tl-ImpulsiveTorqures());}
-  Eigen::VectorXd & RightSideUpper(); // { return lambda_*(robot_.tvmRobot().limits().tu-ImpulsiveTorqures());}
+  // Eigen::VectorXd & RightSideLower(); // { return lambda_*(robot_.tvmRobot().limits().tl-ImpulsiveTorqures());}
+  // Eigen::VectorXd & RightSideUpper(); // { return lambda_*(robot_.tvmRobot().limits().tu-ImpulsiveTorqures());}
 
-  Eigen::VectorXd & ImpulsiveTorqures() { return impFunctionLow()->ImpulsiveTorquePrediction();}
-  Eigen::VectorXd & ImpulsiveTorqures2() { return impFunctionLow()->ImpulsiveTorquePrediction2();}
-  Eigen::VectorXd & ActualImpulsiveTorqures() { return impFunctionLow()->ActualImpulsiveTorquePrediction();}
-  Eigen::VectorXd & ImpulsiveTorquresDerivative() { return impFunctionLow()->ImpulsiveTorquePredictionDerivative();}
-  Eigen::VectorXd & ImpulsiveTorquresDerivative_term1() { return impFunctionLow()->ImpulsiveTorquePredictionDerivative_term1();}
-  Eigen::VectorXd & ImpulsiveTorquresDerivative_term2() { return impFunctionLow()->ImpulsiveTorquePredictionDerivative_term2();}
-  Eigen::VectorXd & ImpulsiveTorquresDerivative_term3() { return impFunctionLow()->ImpulsiveTorquePredictionDerivative_term3();}
+  // Eigen::VectorXd & ImpulsiveTorqures() { return impFunctionLow()->ImpulsiveTorquePrediction();}
+  // Eigen::VectorXd & ImpulsiveTorqures2() { return impFunctionLow()->ImpulsiveTorquePrediction2();}
+  // Eigen::VectorXd & ActualImpulsiveTorqures() { return impFunctionLow()->ActualImpulsiveTorquePrediction();}
+  // Eigen::VectorXd & ImpulsiveTorquresDerivative() { return impFunctionLow()->ImpulsiveTorquePredictionDerivative();}
+  // Eigen::VectorXd & ImpulsiveTorquresDerivative_term1() { return impFunctionLow()->ImpulsiveTorquePredictionDerivative_term1();}
+  // Eigen::VectorXd & ImpulsiveTorquresDerivative_term2() { return impFunctionLow()->ImpulsiveTorquePredictionDerivative_term2();}
+  // Eigen::VectorXd & ImpulsiveTorquresDerivative_term3() { return impFunctionLow()->ImpulsiveTorquePredictionDerivative_term3();}
 
 protected:
   const Eigen::VectorXd const_upper_limit_;
   const Eigen::VectorXd const_lower_limit_;
 
-  mc_rtc::void_ptr imp_constr_lower_;
-  mc_rtc::void_ptr imp_constr_upper_;
+  mc_tvm::ImpulseFunctionPtr imp_constr_lower_;
+  mc_tvm::ImpulseFunctionPtr imp_constr_upper_;
 
   Eigen::VectorXd upper_limit_;
   Eigen::VectorXd lower_limit_;
