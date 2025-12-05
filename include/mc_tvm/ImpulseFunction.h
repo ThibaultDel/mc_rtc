@@ -102,7 +102,7 @@ protected:
   bool high_lambda_latch_ = false;
   int high_lambda_latch_count_ = 0;
   const int high_lambda_latch_max_ = 10;
-  const double limit_multiplier_ = 0.8;
+  const double limit_multiplier_ = 1.0;
   const int lambda_growing_steps = 10;
 
   Eigen::MatrixXd J_ddq;
