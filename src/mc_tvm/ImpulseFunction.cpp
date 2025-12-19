@@ -49,6 +49,8 @@ ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::
   lambda = Eigen::VectorXd::Zero(robot_.mb().nrDof());
   diff_upper_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
   diff_lower_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+  high_lambda_latch_ = std::vector<bool>(robot_.mb().nrDof(), false);
+  high_lambda_latch_count_ = Eigen::VectorXi::Zero(robot_.mb().nrDof());
 
   constraint_right_side_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
 }
@@ -113,7 +115,7 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
       if (diff_upper_(i) >= 0 /*|| diff2 <= 0*/)
       {
         b_(i) += /*std::sqrt*/(lambda(i))*/*std::sqrt*/(diff_upper_(i));
-        constraint_right_side_(i) = -1.0*lambda(i)*diff_upper_(i);
+        constraint_right_side_(i) = -1.0*lambda(i)*/*std::sqrt*/(diff_upper_(i));
       } else if (diff_lower_(i) < 0)
       {
         b_(i) -= /*std::sqrt*/(lambda(i))*/*std::sqrt*/(-1.0*diff_upper_(i));
@@ -131,7 +133,7 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
       if (diff_lower_(i) < 0/* || diff2 >= 0*/)
       {
         b_(i) -= /*std::sqrt*/(lambda(i))*/*std::sqrt*/(-1.0*diff_lower_(i));
-        constraint_right_side_(i) = -1.0*lambda(i)*diff_lower_(i);
+        constraint_right_side_(i) = -1.0*lambda(i)*/*std::sqrt*/(diff_lower_(i));
       } else if (diff_upper_(i) >= 0)
       {
         b_(i) += /*std::sqrt*/(lambda(i))*/*std::sqrt*/(diff_lower_(i));
@@ -233,18 +235,24 @@ void ImpulseFunction::getLambda()
       {
         lambda(i) = lambda_high;
       }
-      high_lambda_latch_ = true;
+      high_lambda_latch_[i] = true;
     } else
     {
-      if(high_lambda_latch_)
+      if(high_lambda_latch_[i])
       {
-        high_lambda_latch_count_ += 1;
-        if(high_lambda_latch_count_ >= high_lambda_latch_max_)
+        high_lambda_latch_count_(i) += 1;
+        if(high_lambda_latch_count_(i) >= high_lambda_latch_max_)
         {
-          high_lambda_latch_ = false;
-          high_lambda_latch_count_ = 0;
+          high_lambda_latch_[i] = false;
+          high_lambda_latch_count_(i) = 0;
         }
-        lambda(i) += lambda_increment;
+        if(lambda(i) < lambda_high)
+        {
+          lambda(i) += lambda_increment;
+        } else
+        {
+          lambda(i) = lambda_high;
+        }
       } else
       {
         if(lambda(i) > lambda_low)

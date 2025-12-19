@@ -42,6 +42,8 @@ public:
                         // int axis,
                         mc_rtc::Logger & logger);
 
+  mc_rtc::void_ptr & getConstraint(){return constraint_;}
+
 protected:
   /** Implementation of mc_solver::ConstraintSet::addToSolver */
   void addToSolverImpl(mc_solver::QPSolver & solver) override;

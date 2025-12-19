@@ -99,8 +99,10 @@ protected:
 
   Eigen::VectorXd diff_upper_;
   Eigen::VectorXd diff_lower_;
-  bool high_lambda_latch_ = false;
-  int high_lambda_latch_count_ = 0;
+  std::vector<bool> high_lambda_latch_;
+  Eigen::VectorXi high_lambda_latch_count_;
+
+  // int high_lambda_latch_count_ = 0;
   const int high_lambda_latch_max_ = 10;
   const double limit_multiplier_ = 1.0;
   const int lambda_growing_steps = 10;

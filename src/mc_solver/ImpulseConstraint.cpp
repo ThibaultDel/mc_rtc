@@ -202,7 +202,7 @@ void ImpulseConstraint::add_logs()
   logger_.addLogEntry("ImpulseConstraint_RightSideUpperLimit", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionHigh()->RightSide();});
 
-  logger_.addLogEntry("ImpulseConstraint_ConstraintRightSideLower", this, [&, this]()
+  logger_.addLogEntry("ImpulseConstraint_RightSideLowerLimit", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->RightSide();});
 
   // equal to qIn and qOut
