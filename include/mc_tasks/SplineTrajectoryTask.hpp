@@ -204,9 +204,9 @@ void SplineTrajectoryTask<Derived>::update(mc_solver::QPSolver & solver)
     Eigen::VectorXd refVel(6);
     Eigen::VectorXd refAcc(6);
     refVel.head<3>() = Eigen::Vector3d::Zero();
-    refVel.tail<3>() = vel;
+    refVel.tail<3>() = frame_->position().rotation()*vel;
     refAcc.head<3>() = Eigen::Vector3d::Zero();
-    refAcc.tail<3>() = acc;
+    refAcc.tail<3>() = frame_->position().rotation()*acc;
     this->refVel(refVel);
     this->refAccel(refAcc);
     this->refPose(target);

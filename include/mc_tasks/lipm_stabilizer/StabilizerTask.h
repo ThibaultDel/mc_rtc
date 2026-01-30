@@ -652,6 +652,21 @@ struct MC_TASKS_DLLAPI StabilizerTask : public MetaTask
   /** @brief Get the parameters for the external wrenches. */
   inline const ExternalWrenchConfiguration & externalWrenchConfiguration() const noexcept { return c_.extWrench; }
 
+  inline Eigen::VectorXd comeval() {return comTask->eval();}
+  inline Eigen::VectorXd pelviseval() {return pelvisTask->eval();}
+  inline Eigen::VectorXd torsoeval() {return torsoTask->eval();}
+  inline Eigen::VectorXd contacteval()
+  {
+    // Eigen::VectorXd res(3 * contactTasks.size());
+    // int i = 0;
+    // for(const auto & task : contactTasks) { res.segment(3 * i++, 3) = task->eval(); }
+    // return res;
+    Eigen::VectorXd res(2 * contactTasks.size());
+    int i = 0;
+    for(const auto & task : contactTasks) { res.segment(2 * i++, 2) = task->eval().segment(0, 2); }
+    return res;
+  }
+
 private:
   void dimWeight(const Eigen::VectorXd & dimW) override;
   Eigen::VectorXd dimWeight() const override;
