@@ -26,25 +26,25 @@ ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::
   addInputDependency<ImpulseFunction>(Update::B, tvm_robot, Robot::Output::H); // TODO check if needed
   addVariable(tvm_robot.alphaD(), true);
 
+  startParam = tvm_robot.qFloatingBase()->size();
+
+  pre_multiplier_ = Eigen::MatrixXd::Identity(robot.mb().nrDof(), robot.mb().nrDof());
+  pre_multiplier_.block<6, 6>(0, 0).setZero();
+
   b_ = Eigen::VectorXd::Zero(robot.mb().nrDof());
 
   Eigen::MatrixXd P_n_sub = normal_ * normal_.transpose();
   P_n = Eigen::Matrix<double, 6, 6>::Zero();
   P_n.block<3,3>(0,0) = P_n_sub;
 
-  tau_imp = Eigen::VectorXd::Zero(robot_.mb().nrDof());
-  tau_imp2 = Eigen::VectorXd::Zero(robot_.mb().nrDof());
-  tau_imp_const = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+  tau_imp_pred = Eigen::VectorXd::Zero(robot_.mb().nrDof());
   tau_imp_act = Eigen::VectorXd::Zero(robot_.mb().nrDof());
   tau_imp_deriv = Eigen::VectorXd::Zero(robot_.mb().nrDof());
-  tau_imp_deriv_term1 = Eigen::VectorXd::Zero(robot_.mb().nrDof());
-  tau_imp_deriv_term2 = Eigen::VectorXd::Zero(robot_.mb().nrDof());
-  tau_imp_deriv_term3 = Eigen::VectorXd::Zero(robot_.mb().nrDof());
 
   last_joint_velocities_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
 
-  alpha_s_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
   q_d = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+  num_qd = Eigen::VectorXd::Zero(robot_.mb().nrDof());
   num_qdd = Eigen::VectorXd::Zero(robot_.mb().nrDof());
   lambda = Eigen::VectorXd::Zero(robot_.mb().nrDof());
   diff_upper_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
@@ -96,21 +96,80 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
     j_m*(J_d_*M.inverse()*J_.transpose()-J_*M.inverse()*M_d_*M.inverse()*J_.transpose() +
       J_*M.inverse()*J_d_.transpose())*j_m_uninverted.inverse())*P_n*J_ +  (-1.f) * ((c_res_+1.f)/(delta_t_/**lambda*/)) *j_m*P_n*J_d_;// - j_m*P_n*J_;
 
-  q_d = (Eigen::VectorXd)tvm::dot(robot.q(),1)->value();
+
+  q_d = tvm::dot(robot.q(),1)->value();
   q_dd = tvm::dot(robot.q(),2)->value();
 
-  b_ = J_dq_new * q_d;
+  b_ = pre_multiplier_*J_dq_new * q_d;
+
+  // These are now used as constants but if used in a final version should be taken in initialization from input parameters
+  double timestep = 0.002;
+
+  auto current_vel = robot_.encoderVelocities();
+
+  num_qd(0) = 0.0;
+  num_qd(1) = 0.0;
+  num_qd(2) = 0.0;
+  num_qd(3) = 0.0;
+  num_qd(4) = 0.0;
+  num_qd(5) = 0.0;
+  num_qd(6)  = current_vel.at(6);
+  num_qd(7)  = current_vel.at(7);
+  num_qd(8)  = current_vel.at(8);
+  num_qd(9)  = current_vel.at(9);
+  num_qd(10) = current_vel.at(10);
+  num_qd(11) = current_vel.at(11);
+  num_qd(12) = current_vel.at(0);
+  num_qd(13) = current_vel.at(1);
+  num_qd(14) = current_vel.at(2);
+  num_qd(15) = current_vel.at(3);
+  num_qd(16) = current_vel.at(4);
+  num_qd(17) = current_vel.at(5);
+  num_qd(18) = current_vel.at(12);
+  num_qd(19) = current_vel.at(13);
+  num_qd(20) = current_vel.at(14);
+  num_qd(21) = current_vel.at(15);
+  num_qd(22) = current_vel.at(16);
+  num_qd(23) = current_vel.at(35);
+  num_qd(24) = current_vel.at(36);
+  num_qd(25) = current_vel.at(37);
+  num_qd(26) = current_vel.at(38);
+  num_qd(27) = current_vel.at(39);
+  num_qd(28) = current_vel.at(40);
+  num_qd(29) = current_vel.at(41);
+  num_qd(30) = current_vel.at(42);
+  num_qd(31) = current_vel.at(43);
+  num_qd(32) = current_vel.at(17);
+  num_qd(33) = current_vel.at(18);
+  num_qd(34) = current_vel.at(19);
+  num_qd(35) = current_vel.at(20);
+  num_qd(36) = current_vel.at(21);
+  num_qd(37) = current_vel.at(22);
+  num_qd(38) = current_vel.at(23);
+  num_qd(39) = current_vel.at(24);
+  num_qd(40) = current_vel.at(25);
+
+  // Take the numerical derivative of the joint velocities
+  for (int i = 0; i < robot_.mb().nrDof(); ++i)
+  {
+    double current_speed = num_qd(i);
+    double past_speed = last_joint_velocities_(i);
+    num_qdd(i) = (current_speed - past_speed) / timestep;
+  }
+  last_joint_velocities_ = num_qd;
 
   // now add the limits termwise, lambda*sng(tau_I_max - tau_I)*sqrt(tau_I_max - tau_I)
-  tau_imp_act = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_*q_d;
+  tau_imp_act = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_*num_qd;
+  tau_imp_pred = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_*q_d;
+
   assert(b_.size() == robot_.mb().nrDof());
   assert(limit_high_.size() == robot_.mb().nrDof());
   assert(limit_low_.size() == robot_.mb().nrDof());
-  assert(tau_imp.size() == robot_.mb().nrDof());
+  assert(tau_imp_pred.size() == robot_.mb().nrDof());
   getLambda();
   if(enforce_high_limit_)
   {
-    for (int i = 0; i < b_.size(); ++i)
+    for (int i = startParam; i < b_.size(); ++i)
     {
       if (diff_upper_(i) >= 0 /*|| diff2 <= 0*/)
       {
@@ -128,7 +187,7 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
     }
   } else
   {
-    for (int i = 0; i < b_.size(); ++i)
+    for (int i = startParam; i < b_.size(); ++i)
     {
       if (diff_lower_(i) < 0/* || diff2 >= 0*/)
       {
@@ -146,42 +205,22 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
     }
   }
 
-   // These are now used as constants but if used in a final version should be taken in initialization from input parameters
-   double timestep = 0.002;
 
-   // Take the numerical derivative of the joint velocities
-  for (int i = 0; i < robot_.mb().nrDof(); ++i)
-  {
-    double current_speed = q_d(i);
-    double past_speed = last_joint_velocities_(i);
-    num_qdd(i) = (current_speed - past_speed) / timestep;
-  }
-   // num_qdd = (q_d - last_joint_velocities_) / timestep;
-   last_joint_velocities_ = q_d;
+   // last_joint_velocities_ = q;
 
    // alpha_s_ += robot_.tvmRobot().alphaD()->value()*0.002;
 
    // tau_imp2 = -1.f*j_m*P_n*J_*alpha_s_;
-   tau_imp = -1.f*j_m*P_n*J_*q_d;
    // tau_imp_act = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_*q_d;
    tau_imp_deriv = (-1.f*(c_res_+1)/delta_t_)*((J_d_.transpose()*j_m_uninverted.inverse() -
      j_m*(J_d_*M.inverse()*J_.transpose()-J_*M.inverse()*M_d_*M.inverse()*J_.transpose() +
      J_*M.inverse()*J_d_.transpose())*j_m_uninverted.inverse())*P_n*J_ * q_d
      + j_m*P_n*(J_d_ * q_d + J_ * q_dd/*q_ddot_var_->value()*/));
 
-   // tau_imp_const += (delta_t_/(c_res_+1))*tau_imp_deriv * 0.002;
-
-   // tau_imp_deriv_term1 = (-1.f*(c_res_+1)/delta_t_)*((J_d_.transpose()*j_m_uninverted.inverse() -
-   //   j_m*(J_d_*M.inverse()*J_.transpose()-J_*M.inverse()*M_d_*M.inverse()*J_.transpose() +
-   //   J_*M.inverse()*J_d_.transpose())*j_m_uninverted.inverse())*P_n*J_ * q_d);
-   // tau_imp_deriv_term2 = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_d_ * q_d;
-   // tau_imp_deriv_term3 = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_ * q_dd/*q_ddot_var_->value()*/;
-
    tau_imp_deriv_num = (-1.f*(c_res_+1)/delta_t_)*((J_d_.transpose()*j_m_uninverted.inverse() -
      j_m*(J_d_*M.inverse()*J_.transpose()-J_*M.inverse()*M_d_*M.inverse()*J_.transpose() +
      J_*M.inverse()*J_d_.transpose())*j_m_uninverted.inverse())*P_n*J_ * q_d
      + j_m*P_n*(J_d_ * q_d + J_ * num_qdd));
-     // mc_rtc::log::info("Exiting the updateb of ImpulseFunction");
 }
 
 void ImpulseFunction::updateJacobian()
@@ -211,9 +250,8 @@ void ImpulseFunction::updateJacobian()
 
 Eigen::MatrixXd j_m = full_world_frame_jacobian.transpose() * j_m_uninverted.inverse();
 
-  J_ddq = -1.f * ((c_res_+1.f)/(delta_t_/**lambda*/)) * j_m * P_n * full_world_frame_jacobian;// + 0.5*0.002*J_dq_new;              // multiplies ddq variable
+  J_ddq = -1.f * ((c_res_+1.f)/(delta_t_/**lambda*/)) * pre_multiplier_ * j_m * P_n * full_world_frame_jacobian;// + 0.5*0.002*J_dq_new;              // multiplies ddq variable
   // J_ddq = -1.f * j_m * P_n * full_world_frame_jacobian;              // multiplies ddq variable
-
 
   splitJacobian(J_ddq, robot.alphaD());
 }
@@ -224,8 +262,8 @@ void ImpulseFunction::getLambda()
   for (int i = 0; i < robot_.mb().nrDof(); ++i)
   {
     // double tau_I = tau_imp_act(i);
-    diff_upper_(i) = tau_imp_act(i) - limit_multiplier_*limit_high_(i);
-    diff_lower_(i) = tau_imp_act(i) - limit_multiplier_*limit_low_(i);
+    diff_upper_(i) = tau_imp_pred(i) - limit_multiplier_*limit_high_(i);
+    diff_lower_(i) = tau_imp_pred(i) - limit_multiplier_*limit_low_(i);
     if(diff_lower_(i) < 0 || diff_upper_(i) > 0)
     {
       if(lambda(i) < lambda_high)
@@ -306,6 +344,11 @@ Eigen::VectorXd & ImpulseFunction::JointAcc()
 Eigen::VectorXd & ImpulseFunction::JointAccNum()
 {
   return num_qdd;
+}
+
+Eigen::VectorXd & ImpulseFunction::JointVelNum()
+{
+  return num_qd;
 }
 
 } // namespace mc_tvm

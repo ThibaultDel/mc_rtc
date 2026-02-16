@@ -172,8 +172,10 @@ void ImpulseConstraint::add_logs()
   logger_.addLogEntry("ImpulseConstraint_ImpulsiveTorqueUpperlimit", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->UpperLimit();});
   //
-  logger_.addLogEntry("ImpulseConstraint_PredictedImpulsiveTorque", this, [&, this]()
+  logger_.addLogEntry("ImpulseConstraint_PredictedImpulsiveTorqueActual", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ActualImpulsiveTorquePrediction();});
+  logger_.addLogEntry("ImpulseConstraint_PredictedImpulsiveTorque", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ImpulsiveTorquePrediction();});
   //
   // logger_.addLogEntry("PredictedImpulsiveTorque2", this, [&, this]()
   // {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ImpulsiveTorqures2();});
@@ -232,6 +234,10 @@ void ImpulseConstraint::add_logs()
   // this is the numerical derivative of joint velocities AlphaIn
   logger_.addLogEntry("ImpulseConstraint_numericalAcceleration", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->JointAccNum();});
+
+  logger_.addLogEntry("ImpulseConstraint_numericalVelocity", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->JointVelNum();});
+
 }
 
 

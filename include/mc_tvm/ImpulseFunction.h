@@ -44,11 +44,7 @@ public:
 
   Eigen::VectorXd & EffectiveLambda(){ return lambda; }
 
-  Eigen::VectorXd & ImpulsiveTorquePrediction(){ return tau_imp; }
-
-  // Eigen::VectorXd & ImpulsiveTorquePrediction2(){ return tau_imp2; }
-  //
-  // Eigen::VectorXd & ImpulsiveTorquePredictionConstraint(){ return tau_imp_const; }
+  Eigen::VectorXd & ImpulsiveTorquePrediction(){ return tau_imp_pred; }
   //
   Eigen::VectorXd & ActualImpulsiveTorquePrediction(){ return tau_imp_act; }
 
@@ -56,25 +52,11 @@ public:
 
   Eigen::VectorXd & ImpulsiveTorquePredictionDerivativeNum(){ return tau_imp_deriv_num; }
 
-  // Eigen::VectorXd & ImpulsiveTorquePredictionDerivative_term1(){ return tau_imp_deriv_term1; }
-  //
-  // Eigen::VectorXd & ImpulsiveTorquePredictionDerivative_term2(){ return tau_imp_deriv_term2; }
-  //
-  // Eigen::VectorXd & ImpulsiveTorquePredictionDerivative_term3(){ return tau_imp_deriv_term3; }
-
-  // Eigen::VectorXd & JointPos();
-  //
-  // Eigen::VectorXd & JointVel();
-  //
-  // Eigen::VectorXd & JointVels();
-  //
-  // Eigen::VectorXd & JointVelUsed();
-
   Eigen::VectorXd & JointAcc();
 
-  // Eigen::VectorXd & JointAccUsed();
-
   Eigen::VectorXd & JointAccNum();
+
+  Eigen::VectorXd & JointVelNum();
 
   Eigen::VectorXd & RightSide(){ return constraint_right_side_; }
 
@@ -84,6 +66,9 @@ protected:
   void updateJacobian();
 
   void getLambda();
+
+  int startParam;
+  Eigen::MatrixXd pre_multiplier_;
 
   const mc_rbdyn::Robot & robot_;
   mc_rbdyn::ConstRobotFramePtr frame_;
@@ -108,29 +93,21 @@ protected:
   const int lambda_growing_steps = 10;
 
   Eigen::MatrixXd J_ddq;
-  Eigen::MatrixXd J_dq;
 
-  Eigen::VectorXd q;
-  Eigen::VectorXd alpha;
-  Eigen::VectorXd alpha_s_;
   Eigen::VectorXd alpha_d;
   Eigen::VectorXd q_d;
   Eigen::VectorXd q_dd;
 
   Eigen::VectorXd lambda;
 
-  Eigen::VectorXd tau_imp;
-  Eigen::VectorXd tau_imp2;
-  Eigen::VectorXd tau_imp_const;
+  Eigen::VectorXd tau_imp_pred;
   Eigen::VectorXd tau_imp_act;
   Eigen::VectorXd tau_imp_deriv;
   Eigen::VectorXd tau_imp_deriv_num;
-  Eigen::VectorXd tau_imp_deriv_term1;
-  Eigen::VectorXd tau_imp_deriv_term2;
-  Eigen::VectorXd tau_imp_deriv_term3;
 
   Eigen::VectorXd last_joint_velocities_;
   Eigen::VectorXd num_qdd;
+  Eigen::VectorXd num_qd;
 
   Eigen::VectorXd constraint_right_side_;
 
