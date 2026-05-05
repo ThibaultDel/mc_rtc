@@ -317,6 +317,9 @@ set(mc_tvm_HDR
     ${mc_tvm_HDR_DIR}/RobotFrame.h
     ${mc_tvm_HDR_DIR}/TransformFunction.h
     ${mc_tvm_HDR_DIR}/VectorOrientationFunction.h
+    ${mc_tvm_HDR_DIR}/TorqueFunction.h
+    ${mc_tvm_HDR_DIR}/ForceFunction.h
+    ${mc_tvm_HDR_DIR}/WrenchFunction.h
 )
 set(mc_tvm_SRC
     mc_tvm/CollisionFunction.cpp
@@ -341,6 +344,9 @@ set(mc_tvm_SRC
     mc_tvm/RobotFrame.cpp
     mc_tvm/TransformFunction.cpp
     mc_tvm/VectorOrientationFunction.cpp
+    mc_tvm/TorqueFunction.cpp
+    mc_tvm/ForceFunction.cpp
+    mc_tvm/WrenchFunction.cpp
 )
 
 add_library(mc_rbdyn SHARED ${mc_rbdyn_SRC} ${mc_rbdyn_HDR} ${mc_tvm_SRC} ${mc_tvm_HDR})
@@ -534,6 +540,15 @@ set(mc_tasks_SRC
     mc_tasks/CompliantPositionTask.cpp
     mc_tasks/CompliantOrientationTask.cpp
     mc_tasks/CompliantEndEffectorTask.cpp
+    mc_tasks/TorqueTask.cpp
+    mc_tasks/ForceTask.cpp
+    mc_tasks/WrenchTask.cpp
+    mc_tasks/TorqueJointTask.cpp
+    mc_tasks/TorqueCartesianTask.cpp
+    mc_tasks/TorqueCartesianTask_test.cpp
+    mc_tasks/TorquePDCartesianTask.cpp
+    mc_tasks/TorquePDRelativeCartesianTask.cpp
+    mc_tasks/OperationalSpaceTask.cpp
 )
 
 set(mc_tasks_HDR
@@ -574,6 +589,17 @@ set(mc_tasks_HDR
     ../include/mc_tasks/CompliantPositionTask.h
     ../include/mc_tasks/CompliantOrientationTask.h
     ../include/mc_tasks/CompliantEndEffectorTask.h
+    ../include/mc_tasks/TorqueTask.h
+    ../include/mc_tasks/ForceTask.h
+    ../include/mc_tasks/WrenchTask.h
+    ../include/mc_tasks/CompliantEndEffectorTask.h
+    ../include/mc_tasks/CompliantPostureTask.h
+    ../include/mc_tasks/TorqueJointTask.h
+    ../include/mc_tasks/TorqueCartesianTask.h
+    ../include/mc_tasks/TorqueCartesianTask_test.h
+    ../include/mc_tasks/TorquePDCartesianTask.h
+    ../include/mc_tasks/TorquePDRelativeCartesianTask.h
+    ../include/mc_tasks/OperationalSpaceTask.h
 )
 
 add_library(mc_tasks SHARED ${mc_tasks_SRC} ${mc_tasks_HDR})
