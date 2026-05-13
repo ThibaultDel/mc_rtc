@@ -13,6 +13,8 @@
 
 #include "TVMKinematicsConstraint.h"
 
+#include <mc_rtc/log/Logger.h>
+
 namespace mc_solver
 {
 
@@ -215,6 +217,7 @@ void DynamicsConstraint::addToSolverImpl(QPSolver & solver)
     default:
       break;
   }
+  addLogging(solver);
 }
 
 void DynamicsConstraint::removeFromSolverImpl(QPSolver & solver)
@@ -234,6 +237,21 @@ void DynamicsConstraint::removeFromSolverImpl(QPSolver & solver)
       auto & problem = tvm_solver(solver).problem();
       problem.removeSubstitutionFor(*problem.constraint(*constr.constraints_.back()));
       KinematicsConstraint::removeFromSolverImpl(solver);
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+void DynamicsConstraint::addLogging(QPSolver & solver)
+{
+  auto & logger = *solver.logger();
+  switch(backend_)
+  {
+    case QPSolver::Backend::TVM:
+    {
+      logger.addLogEntry("DynamicsConstraint_contactTorque", [&]() { return dynamicFunction().contactTorque(); });
       break;
     }
     default:

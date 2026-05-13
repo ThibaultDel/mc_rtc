@@ -126,6 +126,9 @@ protected:
   mc_rtc::void_ptr motion_constr_;
   /** Robot index for the constraint */
   unsigned int robotIndex_;
+
+private:
+  void addLogging(QPSolver & solver);
 };
 
 } // namespace mc_solver

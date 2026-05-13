@@ -69,11 +69,15 @@ public:
    */
   sva::ForceVecd contactForce(const mc_rbdyn::RobotFrame & f) const;
 
+  /** Returns the torque part of the contact forces */
+  const Eigen::VectorXd & contactTorque() const { return contactTorque_; }
+
 protected:
   void updateb();
 
   const mc_rbdyn::Robot & robot_;
   const bool compensateExternalForces_;
+  Eigen::VectorXd contactTorque_;
 
   /** Holds data for the force part of the motion equation */
   struct ForceContact

@@ -5,6 +5,7 @@
 #include <mc_rtc/gui/Checkbox.h>
 #include <mc_rtc/gui/NumberInput.h>
 #include <mc_rtc/gui/NumberSlider.h>
+#include <RBDyn/FK.h>
 
 namespace mc_tasks
 {
@@ -42,9 +43,17 @@ TorqueJointTask::TorqueJointTask(const mc_solver::QPSolver & solver,
 
 void TorqueJointTask::reset()
 {
-  posTarget_ = rbd::sParamToVector(robots_.robot(rIndex_).mb(), robots_.robot(rIndex_).q()).tail(nbActuatedJoints);
+  const auto & robot = robots_.robot(rIndex_);
+  const auto & q_mbc = robot.q();
+  for(int i = 0; i < nbActuatedJoints; ++i)
+  {
+    int mbcIndex = robot.jointIndexInMBC(i);
+    if(mbcIndex >= 0) { posTarget_[i] = q_mbc[size_t(mbcIndex)][0]; }
+  }
   prevPosTarget_ = posTarget_;
+  q = posTarget_;
   velTarget_.setZero();
+  q_dot = velTarget_;
   torqueFeedforward_.setZero();
   integralError_.setZero();
   integralTorque_.setZero();
@@ -52,34 +61,29 @@ void TorqueJointTask::reset()
 
 void TorqueJointTask::update(mc_solver::QPSolver & solver)
 {
+
   Eigen::VectorXd torqueTarget = Eigen::VectorXd::Zero(nbActuatedJoints);
   auto & robot = solver.robots().robot(rIndex_);
 
-  const auto & q_mbc = robot.q(); // MBC order
-  const auto & q_dot_mbc = robot.alpha(); // MBC order
+  const auto & q_mbc = robot.q();
+  const auto & q_dot_mbc = robot.alpha();
   const auto & refOrder = robot.refJointOrder();
 
-  std::vector<double> q_map(refOrder.size());
-  std::vector<double> q_dot_map(refOrder.size());
-
-  for(size_t i = 0; i < refOrder.size(); ++i)
+  // Mirror byPassQPControl(): iterate refJointOrder by index,
+  // use jointIndexInMBC(i) to read from mbc — produces a dense vector
+  // with the same layout as posTarget_/velTarget_ (refJointOrder space)
+  // Eigen::VectorXd q(nbActuatedJoints), q_dot(nbActuatedJoints);
+  for(int i = 0; i < nbActuatedJoints; ++i)
   {
     int mbcIndex = robot.jointIndexInMBC(i);
     if(mbcIndex >= 0)
     {
-      q_map[i] = q_mbc[size_t(mbcIndex)][0];
-      q_dot_map[i] = q_dot_mbc[size_t(mbcIndex)][0];
+      q[i] = q_mbc[size_t(mbcIndex)][0];
+      q_dot[i] = q_dot_mbc[size_t(mbcIndex)][0];
     }
-    else
-    {
-      mc_rtc::log::warning(
-          "[TorqueJointTask] Joint '{}' is in refJointOrder but not in mbc, skipping it in the control computation",
-          refOrder[i]);
-    }
+    // If mbcIndex < 0, q[i] and q_dot[i] stay 0 — posError will be
+    // non-zero but the writeback below will safely skip these joints
   }
-
-  Eigen::VectorXd q = Eigen::VectorXd::Map(q_map.data(), int(q_map.size()));
-  Eigen::VectorXd q_dot = Eigen::VectorXd::Map(q_dot_map.data(), int(q_dot_map.size()));
 
   posError_ = posTarget_ - q;
 
@@ -94,23 +98,23 @@ void TorqueJointTask::update(mc_solver::QPSolver & solver)
   {
     integralError_ += posError_ * solver.dt();
     Eigen::VectorXd tau_i = integralGain_.cwiseProduct(integralError_);
-    integralTorque_ = // Anti-windup
-        tau_i.cwiseMax(-maxIntegralTorque_).cwiseMin(maxIntegralTorque_);
+    integralTorque_ = tau_i.cwiseMax(-maxIntegralTorque_).cwiseMin(maxIntegralTorque_);
+    // Anti-windup: back-calculate integralError from clamped torque
     integralError_ = integralTorque_.cwiseQuotient(integralGain_);
     torqueTarget += integralTorque_;
   }
 
-  torqueTarget += stiffness_.cwiseProduct(posError_);
-  torqueTarget += damping_.cwiseProduct(velError_);
+  torqueTarget += gainsRatio_ * stiffness_.cwiseProduct(posError_);
+  torqueTarget += gainsRatio_ * damping_.cwiseProduct(velError_);
   torqueTarget += torqueFeedforward_;
 
+  // Writeback: mirror byPassQPControl() — iterate refJointOrder by name,
+  // write into MBC slot via jointIndexByName
   std::vector<std::vector<double>> torque_target = robot.mbc().jointTorque;
-
-  int i = 0;
-  for(const auto & joint_name : robot.refJointOrder())
+  for(int i = 0; i < nbActuatedJoints; ++i)
   {
-    torque_target[robot.jointIndexByName(joint_name)][0] = torqueTarget[i];
-    i++;
+    int mbcIndex = robot.jointIndexByName(refOrder[i]);
+    if(mbcIndex >= 0) { torque_target[size_t(mbcIndex)][0] = torqueTarget[i]; }
   }
 
   TorqueTask::torqueTarget(torque_target);
@@ -233,7 +237,6 @@ void TorqueJointTask::addToGUI(mc_rtc::gui::StateBuilder & gui)
 {
   std::vector<std::string> active_gripper_joints;
   const auto & robot = robots_.robot(rIndex_);
-  std::vector<std::string> jointNames = robot.refJointOrder();
 
   for(const auto & g : robot.grippers())
   {
@@ -242,14 +245,16 @@ void TorqueJointTask::addToGUI(mc_rtc::gui::StateBuilder & gui)
   auto isActiveGripperJoint = [&](const std::string & j)
   { return std::find(active_gripper_joints.begin(), active_gripper_joints.end(), j) != active_gripper_joints.end(); };
 
-  // jointNames.reserve(size_t(nbActuatedJoints));
-  // for(const auto & joint : robot.mb().joints())
-  // {
-  //   if(joint.dof() == 1 && !joint.isMimic() && !isActiveGripperJoint(joint.name()))
-  //   {
-  //     jointNames.push_back(joint.name());
-  //   }
-  // }
+  // Build jointNames from refJointOrder, filtering out gripper/mimic/non-1dof joints
+  std::vector<std::string> jointNames;
+  jointNames.reserve(size_t(nbActuatedJoints));
+  for(const auto & jn : robot.refJointOrder())
+  {
+    if(!robot.hasJoint(jn)) { continue; }
+    auto jIndex = robot.mb().jointIndexByName(jn);
+    const auto & joint = robot.mb().joint(jIndex);
+    if(joint.dof() == 1 && !joint.isMimic() && !isActiveGripperJoint(jn)) { jointNames.push_back(jn); }
+  }
 
   gui.addElement(
       {"Tasks", name_, "Gains"}, mc_rtc::gui::ArrayInput("Stiffness", jointNames, stiffness_),
@@ -258,6 +263,8 @@ void TorqueJointTask::addToGUI(mc_rtc::gui::StateBuilder & gui)
           "Constant Stiffness", [this]() { return stiffness_[0]; }, [this](const double & s) { setStiffness(s); }),
       mc_rtc::gui::NumberInput(
           "Constant Damping", [this]() { return damping_[0]; }, [this](const double & d) { setDamping(d); }),
+      mc_rtc::gui::NumberSlider(
+          "Gains Ratio", [this]() { return gainsRatio_; }, [this](double v) { gainsRatio_ = v; }, 0.01, 1.0),
       mc_rtc::gui::Checkbox(
           "Enable Integral Term", [this]() { return integralTermEnabled(); },
           [this]() { enableIntegralTerm(!integralTermEnabled()); }),
@@ -279,27 +286,37 @@ void TorqueJointTask::addToGUI(mc_rtc::gui::StateBuilder & gui)
   gui.addElement({"Tasks", name_, "Details"}, mc_rtc::gui::ArrayLabel("Position Error", jointNames, posError_),
                  mc_rtc::gui::ArrayLabel("Velocity Error", jointNames, velError_));
 
+  // Iterate over refJointOrder so index i matches posTarget_/velTarget_/torqueFeedforward_ layout
   int i = 0;
-  for(const auto & j : robot.mb().joints())
+  for(const auto & jn : robot.refJointOrder())
   {
-    if(j.dof() != 1 || j.isMimic() || isActiveGripperJoint(j.name())) { continue; }
-    auto jIndex = robot.jointIndexByName(j.name());
-    bool isContinuous = robot.ql()[jIndex][0] == -std::numeric_limits<double>::infinity();
-    auto updatePosTarget = [this](int i, double v)
+    if(!robot.hasJoint(jn))
     {
-      this->posTarget_[i] = v;
+      ++i;
+      continue;
+    }
+    auto jIndex = robot.jointIndexByName(jn);
+    const auto & joint = robot.mb().joint(static_cast<int>(robot.mb().jointIndexByName(jn)));
+    if(joint.dof() != 1 || joint.isMimic() || isActiveGripperJoint(jn))
+    {
+      ++i;
+      continue;
+    }
+
+    bool isContinuous = robot.ql()[jIndex][0] == -std::numeric_limits<double>::infinity();
+    auto updatePosTarget = [this](int idx, double v)
+    {
+      this->posTarget_[idx] = v;
       setPosTarget(posTarget_);
     };
-
-    auto updateVelTarget = [this](int i, double v)
+    auto updateVelTarget = [this](int idx, double v)
     {
-      this->velTarget_[i] = v;
+      this->velTarget_[idx] = v;
       setVelTarget(velTarget_);
     };
-
-    auto updateTorqueFeedforward = [this](int i, double v)
+    auto updateTorqueFeedforward = [this](int idx, double v)
     {
-      this->torqueFeedforward_[i] = v;
+      this->torqueFeedforward_[idx] = v;
       setTorqueFeedforward(torqueFeedforward_);
     };
 
@@ -307,27 +324,26 @@ void TorqueJointTask::addToGUI(mc_rtc::gui::StateBuilder & gui)
     {
       gui.addElement({"Tasks", name_, "Position Target"},
                      mc_rtc::gui::NumberInput(
-                         j.name(), [this, i]() { return this->posTarget_[i]; },
+                         jn, [this, i]() { return this->posTarget_[i]; },
                          [i, updatePosTarget](double v) { updatePosTarget(i, v); }));
     }
     else
     {
       gui.addElement({"Tasks", name_, "Position Target"},
                      mc_rtc::gui::NumberSlider(
-                         j.name(), [this, i]() { return this->posTarget_[i]; }, [i, updatePosTarget](double v)
+                         jn, [this, i]() { return this->posTarget_[i]; }, [i, updatePosTarget](double v)
                          { updatePosTarget(i, v); }, robot.ql()[jIndex][0], robot.qu()[jIndex][0]));
     }
 
     gui.addElement({"Tasks", name_, "Velocity Target"},
                    mc_rtc::gui::NumberSlider(
-                       j.name(), [this, i]() { return this->velTarget_[i]; }, [i, updateVelTarget](double v)
+                       jn, [this, i]() { return this->velTarget_[i]; }, [i, updateVelTarget](double v)
                        { updateVelTarget(i, v); }, robot.vl()[jIndex][0], robot.vu()[jIndex][0]));
 
     gui.addElement({"Tasks", name_, "Torque Feedforward"},
                    mc_rtc::gui::NumberSlider(
-                       j.name(), [this, i]() { return this->torqueFeedforward_[i]; },
-                       [i, updateTorqueFeedforward](double v) { updateTorqueFeedforward(i, v); },
-                       -robot.tl()[jIndex][0], robot.tu()[jIndex][0]));
+                       jn, [this, i]() { return this->torqueFeedforward_[i]; }, [i, updateTorqueFeedforward](double v)
+                       { updateTorqueFeedforward(i, v); }, -robot.tl()[jIndex][0], robot.tu()[jIndex][0]));
     i++;
   }
   TorqueTask::addToGUI(gui);
@@ -349,6 +365,8 @@ void TorqueJointTask::addToLogger(mc_rtc::Logger & logger)
   logger.addLogEntry(name_ + "_maxIntegralTorque", [this]() { return maxIntegralTorque_; });
   logger.addLogEntry(name_ + "_integralError", [this]() { return integralError_; });
   logger.addLogEntry(name_ + "_integralTorque", [this]() { return integralTorque_; });
+  logger.addLogEntry(name_ + "_q", [this]() { return q; });
+  logger.addLogEntry(name_ + "_alpha", [this]() { return q_dot; });
   TorqueTask::addToLogger(logger);
 }
 

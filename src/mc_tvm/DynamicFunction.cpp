@@ -12,7 +12,7 @@ namespace mc_tvm
 
 DynamicFunction::DynamicFunction(const mc_rbdyn::Robot & robot, bool compensateExternalForces)
 : tvm::function::abstract::LinearFunction(robot.mb().nrDof()), robot_(robot),
-  compensateExternalForces_(compensateExternalForces)
+  compensateExternalForces_(compensateExternalForces), contactTorque_(robot.mb().nrDof())
 {
   registerUpdates(Update::B, &DynamicFunction::updateb);
   registerUpdates(Update::Jacobian, &DynamicFunction::updateJacobian);
@@ -54,6 +54,7 @@ void DynamicFunction::ForceContact::updateJacobians(DynamicFunction & parent)
     full_jac_.setZero();
     jac_.addFullJacobian(blocks_, force_jac_, full_jac_);
     parent.jacobian_[force.get()].noalias() = -dir_ * full_jac_.block(3, 0, 3, robot.mb().nrDof()).transpose();
+    parent.contactTorque_.noalias() -= parent.jacobian_[force.get()] * force->value();
   }
 }
 
@@ -122,6 +123,7 @@ void DynamicFunction::updateJacobian()
 {
   const auto & robot = robot_.tvmRobot();
   splitJacobian(robot.H(), robot.alphaD());
+  contactTorque_.setZero();
   for(auto & c : contacts_) { c.updateJacobians(*this); }
 }
 

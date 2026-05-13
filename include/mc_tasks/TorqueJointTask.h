@@ -104,6 +104,10 @@ private:
 
   bool deriveVelocityTargetFromPosition_;
   Eigen::VectorXd prevPosTarget_;
+  double gainsRatio_ = 1.0;
+
+  Eigen::VectorXd q;
+  Eigen::VectorXd q_dot;
 };
 
 } // namespace mc_tasks
