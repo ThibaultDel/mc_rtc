@@ -6,6 +6,7 @@
 #include <mc_rtc/gui/NumberInput.h>
 #include <mc_rtc/gui/NumberSlider.h>
 #include <RBDyn/FK.h>
+#include <cmath>
 
 namespace mc_tasks
 {
@@ -15,10 +16,7 @@ TorqueJointTask::TorqueJointTask(const mc_solver::QPSolver & solver,
                                  double stiffness,
                                  double weight)
 : TorqueTask(solver, rIndex, weight), robots_(solver.robots()), rIndex_(rIndex),
-  nbActuatedJoints(
-      (robots_.robot(rIndex_).mb().nrJoints() > 0 && robots_.robot(rIndex_).mb().joint(0).type() == rbd::Joint::Free)
-          ? robots_.robot(rIndex_).mb().nrDof() - 6
-          : robots_.robot(rIndex_).mb().nrDof()),
+  nbActuatedJoints(int(robots_.robot(rIndex_).refJointOrder().size())),
   stiffness_(Eigen::VectorXd::Zero(nbActuatedJoints)), damping_(Eigen::VectorXd::Zero(nbActuatedJoints)),
   integralTermEnabled_(false), integralGain_(Eigen::VectorXd::Zero(nbActuatedJoints)),
   maxIntegralTorque_(Eigen::VectorXd::Zero(nbActuatedJoints)), integralTorque_(Eigen::VectorXd::Zero(nbActuatedJoints)),
@@ -45,10 +43,11 @@ void TorqueJointTask::reset()
 {
   const auto & robot = robots_.robot(rIndex_);
   const auto & q_mbc = robot.q();
-  for(int i = 0; i < nbActuatedJoints; ++i)
+  const auto & refOrder = robot.refJointOrder();
+  for(size_t i = 0; i < refOrder.size(); ++i)
   {
-    int mbcIndex = robot.jointIndexInMBC(i);
-    if(mbcIndex >= 0) { posTarget_[i] = q_mbc[size_t(mbcIndex)][0]; }
+    const size_t mbcIndex = robot.jointIndexByName(refOrder[i]);
+    posTarget_[i] = q_mbc[mbcIndex][0];
   }
   prevPosTarget_ = posTarget_;
   q = posTarget_;
@@ -61,63 +60,57 @@ void TorqueJointTask::reset()
 
 void TorqueJointTask::update(mc_solver::QPSolver & solver)
 {
-
-  Eigen::VectorXd torqueTarget = Eigen::VectorXd::Zero(nbActuatedJoints);
   auto & robot = solver.robots().robot(rIndex_);
-
-  const auto & q_mbc = robot.q();
-  const auto & q_dot_mbc = robot.alpha();
+  const auto & q_mbc = robot.mbc().q;
+  const auto & q_dot_mbc = robot.mbc().alpha;
   const auto & refOrder = robot.refJointOrder();
+  const double dt = solver.dt();
 
-  // Mirror byPassQPControl(): iterate refJointOrder by index,
-  // use jointIndexInMBC(i) to read from mbc — produces a dense vector
-  // with the same layout as posTarget_/velTarget_ (refJointOrder space)
-  // Eigen::VectorXd q(nbActuatedJoints), q_dot(nbActuatedJoints);
-  for(int i = 0; i < nbActuatedJoints; ++i)
+  auto torque_mbc = robot.mbc().jointTorque;
+  for(int i = 0; i < int(refOrder.size()); ++i)
   {
-    int mbcIndex = robot.jointIndexInMBC(i);
-    if(mbcIndex >= 0)
+    const size_t mbcIndex = robot.jointIndexByName(refOrder[size_t(i)]);
+
+    // Torque feedforward (0 by default)
+    torque_mbc[mbcIndex][0] = torqueFeedforward_(i);
+
+    // Position error
+    posError_(i) = posTarget_(i) - q_mbc[mbcIndex][0];
+
+    // Optional velocity target derivation
+    if(deriveVelocityTargetFromPosition_)
     {
-      q[i] = q_mbc[size_t(mbcIndex)][0];
-      q_dot[i] = q_dot_mbc[size_t(mbcIndex)][0];
+      velTarget_(i) = (posTarget_(i) - prevPosTarget_(i)) / dt;
+      prevPosTarget_(i) = posTarget_(i);
     }
-    // If mbcIndex < 0, q[i] and q_dot[i] stay 0 — posError will be
-    // non-zero but the writeback below will safely skip these joints
+
+    // Velocity error
+    velError_(i) = velTarget_(i) - q_dot_mbc[mbcIndex][0];
+
+    // PD control
+    torque_mbc[mbcIndex][0] += gainsRatio_ * stiffness_(i) * posError_(i);
+    torque_mbc[mbcIndex][0] += sqrt(gainsRatio_) * damping_(i) * velError_(i);
+
+    // Integral term (PID)
+    if(integralTermEnabled_)
+    {
+      integralError_(i) += posError_(i) * dt;
+
+      double tau_i = integralGain_(i) * integralError_(i);
+
+      // Clamp integral torque
+      tau_i = std::clamp(tau_i, -maxIntegralTorque_(i), maxIntegralTorque_(i));
+
+      integralTorque_(i) = tau_i;
+
+      // Anti-windup: back-calculate integral error from clamped torque
+      integralError_(i) = integralTorque_(i) / integralGain_(i);
+
+      torque_mbc[mbcIndex][0] += integralTorque_(i);
+    }
   }
 
-  posError_ = posTarget_ - q;
-
-  if(deriveVelocityTargetFromPosition_)
-  {
-    velTarget_ = (posTarget_ - prevPosTarget_) / solver.dt();
-    prevPosTarget_ = posTarget_;
-  }
-  velError_ = velTarget_ - q_dot;
-
-  if(integralTermEnabled_)
-  {
-    integralError_ += posError_ * solver.dt();
-    Eigen::VectorXd tau_i = integralGain_.cwiseProduct(integralError_);
-    integralTorque_ = tau_i.cwiseMax(-maxIntegralTorque_).cwiseMin(maxIntegralTorque_);
-    // Anti-windup: back-calculate integralError from clamped torque
-    integralError_ = integralTorque_.cwiseQuotient(integralGain_);
-    torqueTarget += integralTorque_;
-  }
-
-  torqueTarget += gainsRatio_ * stiffness_.cwiseProduct(posError_);
-  torqueTarget += gainsRatio_ * damping_.cwiseProduct(velError_);
-  torqueTarget += torqueFeedforward_;
-
-  // Writeback: mirror byPassQPControl() — iterate refJointOrder by name,
-  // write into MBC slot via jointIndexByName
-  std::vector<std::vector<double>> torque_target = robot.mbc().jointTorque;
-  for(int i = 0; i < nbActuatedJoints; ++i)
-  {
-    int mbcIndex = robot.jointIndexByName(refOrder[i]);
-    if(mbcIndex >= 0) { torque_target[size_t(mbcIndex)][0] = torqueTarget[i]; }
-  }
-
-  TorqueTask::torqueTarget(torque_target);
+  TorqueTask::torqueTarget(torque_mbc);
   TorqueTask::update(solver);
 }
 
