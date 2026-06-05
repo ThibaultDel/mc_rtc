@@ -115,7 +115,7 @@ static mc_rtc::void_ptr initialize(QPSolver::Backend backend,
 ImpulseConstraint::ImpulseConstraint(const mc_rbdyn::Robots & robots, unsigned int robotIndex, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double delta_t, double c_res, double limit_multiplier, mc_rtc::Logger & logger)
 : constraint_(initialize(backend_, robots, robotIndex, frame, normal, lambda_high, lambda_low, delta_t, c_res, limit_multiplier)), logger_(logger)
 {
-  add_logs();
+  add_logs(robots[robotIndex]);
 }
 
 void ImpulseConstraint::addToSolverImpl(mc_solver::QPSolver & solver)
@@ -152,10 +152,10 @@ void ImpulseConstraint::removeFromSolverImpl(mc_solver::QPSolver & solver)
   }
 }
 
-void ImpulseConstraint::add_logs()
+void ImpulseConstraint::add_logs(const mc_rbdyn::Robot &r)
 {
   const auto & name = r.name();
-  auto prefix = robots().robot().name() == name ? "" : fmt::format("{}_", name);
+  auto prefix = r.name() == name ? "" : fmt::format("{}_", name);
   auto entry = [&](const char * entry) { return fmt::format("{}{}", prefix, entry); };
   logger_.addLogEntry(entry("ImpulseConstraint_Evaluation_lower"), this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->value();});
