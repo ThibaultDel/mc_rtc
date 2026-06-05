@@ -154,29 +154,33 @@ void ImpulseConstraint::removeFromSolverImpl(mc_solver::QPSolver & solver)
 
 void ImpulseConstraint::add_logs()
 {
-  logger_.addLogEntry("ImpulseConstraint_Evaluation_lower", this, [&, this]()
+  const auto & name = r.name();
+  auto prefix = robots().robot().name() == name ? "" : fmt::format("{}_", name);
+  auto entry = [&](const char * entry) { return fmt::format("{}{}", prefix, entry); };
+  logger_.addLogEntry(entry("ImpulseConstraint_Evaluation_lower"), this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->value();});
 
-  logger_.addLogEntry("ImpulseConstraint_Evaluation_upper", this, [&, this]()
+  logger_.addLogEntry(entry("ImpulseConstraint_Evaluation_upper"), this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionHigh()->value();});
 
-  logger_.addLogEntry("ImpulseConstraint_Elementwise_lambda_low", this, [&, this]()
+  logger_.addLogEntry(entry("ImpulseConstraint_Elementwise_lambda_low"), this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->EffectiveLambda();});
 
-  logger_.addLogEntry("ImpulseConstraint_Elementwise_lambda_high", this, [&, this]()
+  logger_.addLogEntry(entry("ImpulseConstraint_Elementwise_lambda_high"), this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionHigh()->EffectiveLambda();});
 
-  logger_.addLogEntry("ImpulseConstraint_ImpulsiveTorqueLowerlimit", this, [&, this]()
+  logger_.addLogEntry(entry("ImpulseConstraint_ImpulsiveTorqueLowerlimit"), this, [this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->LowerLimit();});
 
-  logger_.addLogEntry("ImpulseConstraint_ImpulsiveTorqueUpperlimit", this, [&, this]()
+  logger_.addLogEntry(entry("ImpulseConstraint_ImpulsiveTorqueUpperlimit"), this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->UpperLimit();});
   //
-  logger_.addLogEntry("ImpulseConstraint_PredictedImpulsiveTorqueActual", this, [&, this]()
+  logger_.addLogEntry(entry("ImpulseConstraint_PredictedImpulsiveTorqueActual"), this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ActualImpulsiveTorquePrediction();});
-  logger_.addLogEntry("ImpulseConstraint_PredictedImpulsiveTorque", this, [&, this]()
+  
+  logger_.addLogEntry(entry("ImpulseConstraint_PredictedImpulsiveTorque"), this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ImpulsiveTorquePrediction();});
-  //
+  
   // logger_.addLogEntry("PredictedImpulsiveTorque2", this, [&, this]()
   // {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ImpulsiveTorqures2();});
   //
@@ -186,10 +190,10 @@ void ImpulseConstraint::add_logs()
   // logger_.addLogEntry("ActualPredictedImpulsiveTorque", this, [&, this]()
   // {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ActualImpulsiveTorqures();});
   //
-  logger_.addLogEntry("ImpulseConstraint_PredictedImpulsiveTorqueDerivativeExpected", this, [&, this]()
+  logger_.addLogEntry(entry("ImpulseConstraint_PredictedImpulsiveTorqueDerivativeExpected"), this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ImpulsiveTorquePredictionDerivative();});
   //
-  logger_.addLogEntry("ImpulseConstraint_PredictedImpulsiveTorqueDerivativeNumerical", this, [&, this]()
+  logger_.addLogEntry(entry("ImpulseConstraint_PredictedImpulsiveTorqueDerivativeNumerical"), this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ImpulsiveTorquePredictionDerivativeNum();});
   //
   // logger_.addLogEntry("PredictedImpulsiveTorqueDerivative_term1", this, [&, this]()
@@ -201,10 +205,10 @@ void ImpulseConstraint::add_logs()
   // logger_.addLogEntry("PredictedImpulsiveTorqueDerivative_term3", this, [&, this]()
   // {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ImpulsiveTorquresDerivative_term3();});
   //
-  logger_.addLogEntry("ImpulseConstraint_RightSideUpperLimit", this, [&, this]()
+  logger_.addLogEntry(entry("ImpulseConstraint_RightSideUpperLimit"), this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionHigh()->RightSide();});
 
-  logger_.addLogEntry("ImpulseConstraint_RightSideLowerLimit", this, [&, this]()
+  logger_.addLogEntry(entry("ImpulseConstraint_RightSideLowerLimit"), this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->RightSide();});
 
   // equal to qIn and qOut
@@ -220,7 +224,7 @@ void ImpulseConstraint::add_logs()
   // {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->JointVels();});
 
   // equal to alphaDOut
-  logger_.addLogEntry("ImpulseConstraint_CommandedAcceleration", this, [&, this]()
+  logger_.addLogEntry(entry("ImpulseConstraint_CommandedAcceleration"), this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->JointAcc();});
 
   // Does not give any value for some reason
@@ -232,10 +236,10 @@ void ImpulseConstraint::add_logs()
   // {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->JointAccUsed();});
 
   // this is the numerical derivative of joint velocities AlphaIn
-  logger_.addLogEntry("ImpulseConstraint_numericalAcceleration", this, [&, this]()
+  logger_.addLogEntry(entry("ImpulseConstraint_numericalAcceleration"), this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->JointAccNum();});
 
-  logger_.addLogEntry("ImpulseConstraint_numericalVelocity", this, [&, this]()
+  logger_.addLogEntry(entry("ImpulseConstraint_numericalVelocity"), this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->JointVelNum();});
 
 }
