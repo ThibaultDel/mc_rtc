@@ -119,6 +119,33 @@ void DynamicFunction::updateb()
   }
 }
 
+// void DynamicFunction::updateb()
+// {
+//     b_ = robot_.tvmRobot().C();
+//     if(compensateExternalForces_)
+//     {
+//         Eigen::VectorXd tauExt = robot_.tvmRobot().tauExternal();
+//         if(robot_.tvmRobot().tauCompensation())
+//         {
+//             tauExt = robot_.tvmRobot().tauCompensation().value();
+//         }
+//         // if(!contacts_.empty())
+//         // {
+//         //     // Build Jc and project out contact subspace
+//         //     Eigen::MatrixXd Jc = stackedContactJacobian();
+//         //     // Pseudo-inverse via SVD for numerical safety
+//         //     Eigen::MatrixXd JcJcT = Jc * Jc.transpose();
+//         //     Eigen::MatrixXd Jc_pinv = Jc.transpose()
+//         //         * JcJcT.completeOrthogonalDecomposition().pseudoInverse();
+//         //     // Null-space projector: I - Jc^+ Jc
+//         //     Eigen::MatrixXd N = Eigen::MatrixXd::Identity(tauExt.size(), tauExt.size())
+//         //                         - Jc_pinv * Jc;
+//         //     tauExt = N * tauExt;
+//         // }
+//         b_ -= tauExt;
+//     }
+// }
+
 void DynamicFunction::updateJacobian()
 {
   const auto & robot = robot_.tvmRobot();
@@ -130,6 +157,28 @@ void DynamicFunction::updateJacobian()
 auto DynamicFunction::findContact(const mc_rbdyn::RobotFrame & frame) const -> std::vector<ForceContact>::const_iterator
 {
   return std::find_if(contacts_.begin(), contacts_.end(), [&](const auto & c) { return c.frame_.get() == &frame; });
+}
+
+// New method in DynamicFunction or a helper
+Eigen::MatrixXd DynamicFunction::stackedContactJacobian()
+{
+  int nDof = robot_.mb().nrDof();
+  int nRows = 0;
+  for(const auto & c : contacts_) nRows += 3 * c.forces_.numberOfVariables();
+
+  Eigen::MatrixXd Jc(nRows, nDof);
+  int row = 0;
+  for(const auto & c : contacts_)
+  {
+    for(int i = 0; i < c.forces_.numberOfVariables(); ++i)
+    {
+      // jacobian_[force] is already -dir * J_translated^T
+      // recover the 3xnDof block
+      Jc.block(row, 0, 3, nDof) = -jacobian_[c.forces_[i].get()].transpose();
+      row += 3;
+    }
+  }
+  return Jc; // shape: (3*n_contact_points, nDof)
 }
 
 } // namespace mc_tvm

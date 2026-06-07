@@ -32,7 +32,7 @@ TorqueJointTask::TorqueJointTask(const mc_solver::QPSolver & solver,
   type_ = "torque_joint";
 
   setStiffness(stiffness);
-  setDamping(2.0 * sqrt(stiffness)); // Critical damping by default
+  setDamping(2.0 * sqrt(stiffness)); // Damping by default
   setIntegralGain(0.01 * stiffness); // Small integral gain by default
   setMaxIntegralTorque(10); // Anti-windup limits for the integral term in Nm
   enableIntegralTerm(false); // Integral term disabled by default

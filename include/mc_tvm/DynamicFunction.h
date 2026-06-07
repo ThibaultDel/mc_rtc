@@ -72,6 +72,12 @@ public:
   /** Returns the torque part of the contact forces */
   const Eigen::VectorXd & contactTorque() const { return contactTorque_; }
 
+  /** Returns the stacked Jacobian of all contact points
+   *
+   * \returns A matrix of size (3 * n_contact_points, nDof)
+   */
+  Eigen::MatrixXd stackedContactJacobian();
+
 protected:
   void updateb();
 
