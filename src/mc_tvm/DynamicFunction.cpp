@@ -119,33 +119,6 @@ void DynamicFunction::updateb()
   }
 }
 
-// void DynamicFunction::updateb()
-// {
-//     b_ = robot_.tvmRobot().C();
-//     if(compensateExternalForces_)
-//     {
-//         Eigen::VectorXd tauExt = robot_.tvmRobot().tauExternal();
-//         if(robot_.tvmRobot().tauCompensation())
-//         {
-//             tauExt = robot_.tvmRobot().tauCompensation().value();
-//         }
-//         // if(!contacts_.empty())
-//         // {
-//         //     // Build Jc and project out contact subspace
-//         //     Eigen::MatrixXd Jc = stackedContactJacobian();
-//         //     // Pseudo-inverse via SVD for numerical safety
-//         //     Eigen::MatrixXd JcJcT = Jc * Jc.transpose();
-//         //     Eigen::MatrixXd Jc_pinv = Jc.transpose()
-//         //         * JcJcT.completeOrthogonalDecomposition().pseudoInverse();
-//         //     // Null-space projector: I - Jc^+ Jc
-//         //     Eigen::MatrixXd N = Eigen::MatrixXd::Identity(tauExt.size(), tauExt.size())
-//         //                         - Jc_pinv * Jc;
-//         //     tauExt = N * tauExt;
-//         // }
-//         b_ -= tauExt;
-//     }
-// }
-
 void DynamicFunction::updateJacobian()
 {
   const auto & robot = robot_.tvmRobot();
