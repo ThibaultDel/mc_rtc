@@ -298,12 +298,6 @@ void TorqueTask::torqueTarget(const std::vector<std::vector<double>> & tau)
   {
     int mbcIndex = robot.jointIndexInMBC(i);
     if(mbcIndex >= 0) { torque_vector_[int(i)] = torque_[size_t(mbcIndex)][0]; }
-    else
-    {
-      mc_rtc::log::warning(
-          "[TorqueTask] Joint '{}' is in refJointOrder but not in mbc, skipping it in the control computation",
-          refOrder[i]);
-    }
   }
 
   switch(backend_)

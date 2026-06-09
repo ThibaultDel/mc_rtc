@@ -47,6 +47,8 @@ void TorqueJointTask::reset()
   for(size_t i = 0; i < refOrder.size(); ++i)
   {
     const size_t mbcIndex = robot.jointIndexByName(refOrder[i]);
+    // Guard: skip joints not present in the multibody chain or skip fixed/multi-dof joints that have no scalar q
+    if(!robot.hasJoint(refOrder[i]) || q_mbc[mbcIndex].empty()) { continue; }
     posTarget_[i] = q_mbc[mbcIndex][0];
   }
   prevPosTarget_ = posTarget_;
@@ -69,7 +71,13 @@ void TorqueJointTask::update(mc_solver::QPSolver & solver)
   auto torque_mbc = robot.mbc().jointTorque;
   for(int i = 0; i < int(refOrder.size()); ++i)
   {
+    // Guard: skip joints not in the multibody chain
+    if(!robot.hasJoint(refOrder[size_t(i)])) { continue; }
+
     const size_t mbcIndex = robot.jointIndexByName(refOrder[size_t(i)]);
+
+    // Guard: skip fixed/multi-dof joints with empty q vectors
+    if(q_mbc[mbcIndex].empty()) { continue; }
 
     // Torque feedforward (0 by default)
     torque_mbc[mbcIndex][0] = torqueFeedforward_(i);
