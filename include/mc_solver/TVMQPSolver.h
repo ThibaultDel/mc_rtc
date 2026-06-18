@@ -12,6 +12,11 @@
 #include <tvm/LinearizedControlProblem.h>
 #include <tvm/scheme/WeightedLeastSquares.h>
 
+namespace mc_tvm
+{
+struct DynamicFunction;
+} // namespace mc_tvm
+
 namespace mc_solver
 {
 
@@ -95,6 +100,8 @@ private:
   bool runCommon();
   /** Run without feedback (open-loop) */
   bool runOpenLoop();
+  /** Run without feedback (open-loop) but with the real floating base */
+  bool runOpenLoopWithRealFloatingBase();
   /** Run with encoders' feedback */
   bool runJointsFeedback(bool wVelocity);
 

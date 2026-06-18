@@ -233,6 +233,8 @@ void DynamicsConstraint::removeFromSolverImpl(QPSolver & solver)
     }
     case QPSolver::Backend::TVM:
     {
+      // Remove the log entry before destroying the constraint
+      if(solver.logger()) { solver.logger()->removeLogEntry("DynamicsConstraint_contactTorque"); }
       auto & constr = *static_cast<TVMKinematicsConstraint *>(constraint_.get());
       auto & problem = tvm_solver(solver).problem();
       problem.removeSubstitutionFor(*problem.constraint(*constr.constraints_.back()));
@@ -251,7 +253,8 @@ void DynamicsConstraint::addLogging(QPSolver & solver)
   {
     case QPSolver::Backend::TVM:
     {
-      logger.addLogEntry("DynamicsConstraint_contactTorque", [&]() { return dynamicFunction().contactTorque(); });
+      mc_tvm::DynamicFunctionPtr fn_ptr = *static_cast<mc_tvm::DynamicFunctionPtr *>(motion_constr_.get());
+      logger.addLogEntry("DynamicsConstraint_contactTorque", [fn_ptr]() { return fn_ptr->contactTorque(); });
       break;
     }
     default:

@@ -56,6 +56,9 @@ enum class MC_SOLVER_DLLAPI FeedbackType
   None,
   /** Synonyn for None */
   OpenLoop = None,
+  /** Open-loop for all joints, but floating base is always
+   *  synchronized from realRobots (never integrated by the QP) */
+  OpenLoopWithRealFloatingBase,
   /** Use encoder values for actuated joints */
   Joints,
   /** Joints + encoder velocity obtained from numerical differentiation */

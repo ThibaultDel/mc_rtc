@@ -97,6 +97,8 @@ bool TVMQPSolver::run_impl(FeedbackType fType)
   {
     case FeedbackType::None:
       return runOpenLoop();
+    case FeedbackType::OpenLoopWithRealFloatingBase:
+      return runOpenLoopWithRealFloatingBase();
     case FeedbackType::Joints:
       return runJointsFeedback(false);
     case FeedbackType::JointsWVelocity:
@@ -133,6 +135,47 @@ bool TVMQPSolver::runOpenLoop()
     {
       auto & mb = robot.mb();
       if(mb.nrDof() > 0) { updateRobot(robot); }
+    }
+    return true;
+  }
+  return false;
+}
+
+bool TVMQPSolver::runOpenLoopWithRealFloatingBase()
+{
+  for(size_t i = 0; i < robots().size(); ++i)
+  {
+    auto & robot = robots_p->robot(i);
+    const auto & realRobot = realRobots().robot(i);
+    if(robot.mb().joint(0).type() != rbd::Joint::Free) { continue; }
+
+    robot.q()[0] = realRobot.q()[0];
+    robot.alpha()[0] = realRobot.alpha()[0];
+
+    robot.forwardKinematics();
+    robot.forwardVelocity();
+    robot.forwardAcceleration();
+  }
+
+  bool res = runCommon();
+
+  if(res)
+  {
+    for(auto & robot : *robots_p)
+    {
+      if(robot.mb().nrDof() == 0) { continue; }
+
+      updateRobot(robot);
+
+      const auto & realRobot = realRobots().robot(robot.robotIndex());
+      if(robot.mb().joint(0).type() != rbd::Joint::Free) { continue; }
+
+      robot.q()[0] = realRobot.q()[0];
+      robot.alpha()[0] = realRobot.alpha()[0];
+
+      robot.forwardKinematics();
+      robot.forwardVelocity();
+      robot.forwardAcceleration();
     }
     return true;
   }
