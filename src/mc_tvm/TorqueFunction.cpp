@@ -22,6 +22,8 @@ TorqueFunction::TorqueFunction(const mc_rbdyn::Robot & robot, bool compensateExt
   addOutputDependency<TorqueFunction>(Output::B, Update::B);
   auto & tvm_robot = robot.tvmRobot();
   addInputDependency<TorqueFunction>(Update::B, tvm_robot, Robot::Output::tau);
+  addInputDependency<TorqueFunction>(Update::B, tvm_robot, Robot::Output::C);
+  addInputDependency<TorqueFunction>(Update::B, tvm_robot, Robot::Output::ExternalForces);
   addVariable(tvm::dot(tvm_robot.q(), 2), true);
   addVariable(tvm_robot.tau(), true); // x
   jacobian_[tvm_robot.tau().get()] = Eigen::MatrixXd::Identity(robot_.mb().nrDof(), robot_.mb().nrDof());
@@ -37,6 +39,9 @@ void TorqueFunction::updateb() // Ax + b = 0
   torque_gravity_ = robot_.tvmRobot().C();
   if(compensateExternalForces_) { b_ += torque_extForces_; }
   if(compensateGravity_) { b_ -= torque_gravity_; }
+
+  // If robot is floating base, the first 6 DoFs are not actuated, so we set the corresponding entries in b_ to 0
+  if(j0_ == 1) { b_.head(6).setZero(); }
 }
 
 void TorqueFunction::reset()
