@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [2.15.0] - 2026-07-09
+
+- Dropped ROS1 support
+
 ## [2.14.0] - 2025-08-28
 
 ## What's Changed
