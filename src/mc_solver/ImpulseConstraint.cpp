@@ -9,7 +9,7 @@
 #include <Tasks/Bounds.h>
 #include <Tasks/QPConstr.h>
 
-#include "TVMImpulseConstraint.h"
+#include <mc_solver/TVMImpulseConstraint.h>
 
 namespace mc_solver
 {
@@ -64,11 +64,15 @@ void TVMImpulseConstraint::addToSolver(mc_solver::TVMQPSolver & solver)
       mc_tvm::ImpulseFunctionPtr imp_fn_up = /**static_cast<mc_tvm::ImpulseFunctionPtr *>*/(imp_constr_upper_/*.get()*/);
       mc_tvm::ImpulseFunctionPtr imp_fn_low = /**static_cast<mc_tvm::ImpulseFunctionPtr *>(imp_constr_lower_.get())*/imp_constr_lower_;
       mc_rtc::log::info("Created the TVM functions");
-      auto imp_up = problem.add( imp_fn_up <= 0.0/*robot_.tvmRobot().limits().tu * limit_multiplier_ * lambda_low_*/, tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(0)});
-      auto imp_low = problem.add( imp_fn_low >= 0.0/*robot_.tvmRobot().limits().tl * limit_multiplier_ * lambda_low_*/, tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(0)});
+      //impulsive torque derivate constraint
+      auto imp_d_up = problem.add( imp_fn_up <= 0.0/*robot_.tvmRobot().limits().tu * limit_multiplier_ * lambda_low_*/, tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(0)});
+      auto imp_d_low = problem.add( imp_fn_low >= 0.0/*robot_.tvmRobot().limits().tl * limit_multiplier_ * lambda_low_*/, tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(0)});
+      //impulsive torque derivate constraint
+      //auto imp_up = problem.add();
+      //auto imp_low = problem.add();
       mc_rtc::log::info("made the problem additions");
-      constraints_.push_back(imp_up);
-      constraints_.push_back(imp_low);
+      constraints_.push_back(imp_d_up);
+      constraints_.push_back(imp_d_low);
       mc_rtc::log::info("Pushed back the constraints");
 }
 
@@ -115,7 +119,7 @@ static mc_rtc::void_ptr initialize(QPSolver::Backend backend,
 ImpulseConstraint::ImpulseConstraint(const mc_rbdyn::Robots & robots, unsigned int robotIndex, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double delta_t, double c_res, double limit_multiplier, mc_rtc::Logger & logger)
 : constraint_(initialize(backend_, robots, robotIndex, frame, normal, lambda_high, lambda_low, delta_t, c_res, limit_multiplier)), logger_(logger)
 {
-  add_logs(robots[robotIndex]);
+  add_logs();
 }
 
 void ImpulseConstraint::addToSolverImpl(mc_solver::QPSolver & solver)
@@ -152,33 +156,43 @@ void ImpulseConstraint::removeFromSolverImpl(mc_solver::QPSolver & solver)
   }
 }
 
-void ImpulseConstraint::add_logs(const mc_rbdyn::Robot &r)
-{
-  const auto & name = r.name();
-  auto prefix = r.name() == name ? "" : fmt::format("{}_", name);
-  auto entry = [&](const char * entry) { return fmt::format("{}{}", prefix, entry); };
-  logger_.addLogEntry(entry("ImpulseConstraint_Evaluation_lower"), this, [&, this]()
+void ImpulseConstraint::add_logs(){
+
+  logger_.addLogEntry("Hammer tip velocity constraint", [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->end_effector_vel;});
+
+  logger_.addLogEntry("ImpulseConstraint_Evaluation_lower", [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->value();});
 
-  logger_.addLogEntry(entry("ImpulseConstraint_Evaluation_upper"), this, [&, this]()
+  logger_.addLogEntry("ImpulseConstraint_Evaluation_lower", [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->value();});
+
+  logger_.addLogEntry("ImpulseConstraint_Evaluation_upper", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionHigh()->value();});
 
-  logger_.addLogEntry(entry("ImpulseConstraint_Elementwise_lambda_low"), this, [&, this]()
+  logger_.addLogEntry("ImpulseConstraint_Elementwise_lambda_low", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->EffectiveLambda();});
 
-  logger_.addLogEntry(entry("ImpulseConstraint_Elementwise_lambda_high"), this, [&, this]()
+  logger_.addLogEntry("ImpulseConstraint_Elementwise_lambda_high", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionHigh()->EffectiveLambda();});
 
-  logger_.addLogEntry(entry("ImpulseConstraint_ImpulsiveTorqueLowerlimit"), this, [this]()
+  logger_.addLogEntry("ImpulseConstraint_ImpulsiveTorqueLowerlimit", this, [this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->LowerLimit();});
 
-  logger_.addLogEntry(entry("ImpulseConstraint_ImpulsiveTorqueUpperlimit"), this, [&, this]()
+  logger_.addLogEntry("ImpulseConstraint_ImpulsiveTorqueUpperlimit", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->UpperLimit();});
   //
-  logger_.addLogEntry(entry("ImpulseConstraint_PredictedImpulsiveTorqueActual"), this, [&, this]()
+  logger_.addLogEntry("ImpulsiveTorqueTrue_speedMethodCut", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ImpulsiveTorqueTrueSpeed();});
+  
+  //ImpulsiveTorqueTrueForce not initialized yet
+  //logger_.addLogEntry("ImpulsiveTorqueTrue_force", this, [&, this]()
+  //{return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ImpulsiveTorqueTrueForce();});
+
+  logger_.addLogEntry("ImpulseConstraint_PredictedImpulsiveTorqueActual", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ActualImpulsiveTorquePrediction();});
   
-  logger_.addLogEntry(entry("ImpulseConstraint_PredictedImpulsiveTorque"), this, [&, this]()
+  logger_.addLogEntry("ImpulseConstraint_PredictedImpulsiveTorque", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ImpulsiveTorquePrediction();});
   
   // logger_.addLogEntry("PredictedImpulsiveTorque2", this, [&, this]()
@@ -190,10 +204,10 @@ void ImpulseConstraint::add_logs(const mc_rbdyn::Robot &r)
   // logger_.addLogEntry("ActualPredictedImpulsiveTorque", this, [&, this]()
   // {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ActualImpulsiveTorqures();});
   //
-  logger_.addLogEntry(entry("ImpulseConstraint_PredictedImpulsiveTorqueDerivativeExpected"), this, [&, this]()
+  logger_.addLogEntry("ImpulseConstraint_PredictedImpulsiveTorqueDerivativeExpected", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ImpulsiveTorquePredictionDerivative();});
   //
-  logger_.addLogEntry(entry("ImpulseConstraint_PredictedImpulsiveTorqueDerivativeNumerical"), this, [&, this]()
+  logger_.addLogEntry("ImpulseConstraint_PredictedImpulsiveTorqueDerivativeNumerical", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ImpulsiveTorquePredictionDerivativeNum();});
   //
   // logger_.addLogEntry("PredictedImpulsiveTorqueDerivative_term1", this, [&, this]()
@@ -205,10 +219,10 @@ void ImpulseConstraint::add_logs(const mc_rbdyn::Robot &r)
   // logger_.addLogEntry("PredictedImpulsiveTorqueDerivative_term3", this, [&, this]()
   // {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ImpulsiveTorquresDerivative_term3();});
   //
-  logger_.addLogEntry(entry("ImpulseConstraint_RightSideUpperLimit"), this, [&, this]()
+  logger_.addLogEntry("ImpulseConstraint_RightSideUpperLimit", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionHigh()->RightSide();});
 
-  logger_.addLogEntry(entry("ImpulseConstraint_RightSideLowerLimit"), this, [&, this]()
+  logger_.addLogEntry("ImpulseConstraint_RightSideLowerLimit", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->RightSide();});
 
   // equal to qIn and qOut
@@ -224,7 +238,7 @@ void ImpulseConstraint::add_logs(const mc_rbdyn::Robot &r)
   // {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->JointVels();});
 
   // equal to alphaDOut
-  logger_.addLogEntry(entry("ImpulseConstraint_CommandedAcceleration"), this, [&, this]()
+  logger_.addLogEntry("ImpulseConstraint_CommandedAcceleration", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->JointAcc();});
 
   // Does not give any value for some reason
@@ -236,13 +250,11 @@ void ImpulseConstraint::add_logs(const mc_rbdyn::Robot &r)
   // {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunction()->JointAccUsed();});
 
   // this is the numerical derivative of joint velocities AlphaIn
-  logger_.addLogEntry(entry("ImpulseConstraint_numericalAcceleration"), this, [&, this]()
+  logger_.addLogEntry("ImpulseConstraint_numericalAcceleration", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->JointAccNum();});
 
-  logger_.addLogEntry(entry("ImpulseConstraint_numericalVelocity"), this, [&, this]()
+  logger_.addLogEntry("ImpulseConstraint_numericalVelocity", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->JointVelNum();});
 
-}
-
-
+  }
 } // namespace mc_solver

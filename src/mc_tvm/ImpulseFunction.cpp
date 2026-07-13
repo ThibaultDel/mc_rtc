@@ -3,9 +3,7 @@
  */
 
 #include <mc_tvm/ImpulseFunction.h>
-
 #include <mc_tvm/RobotFrame.h>
-
 #include <numeric>
 
 namespace mc_tvm
@@ -35,8 +33,8 @@ ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::
 
   Eigen::MatrixXd P_n_sub = normal_ * normal_.transpose();
   P_n = Eigen::Matrix<double, 6, 6>::Zero();
-  P_n.block<3,3>(0,0) = P_n_sub;
-
+  P_n.block<3,3>(3,3) = P_n_sub;
+  mc_rtc::log::info("normal Pn constraint{}",P_n);
   tau_imp_pred = Eigen::VectorXd::Zero(robot_.mb().nrDof());
   tau_imp_act = Eigen::VectorXd::Zero(robot_.mb().nrDof());
   tau_imp_deriv = Eigen::VectorXd::Zero(robot_.mb().nrDof());
@@ -53,6 +51,7 @@ ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::
   high_lambda_latch_count_ = Eigen::VectorXi::Zero(robot_.mb().nrDof());
 
   constraint_right_side_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+
 }
 
 
@@ -66,6 +65,7 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   assert(M.rows() == robot_.mb().nrDof());
   assert(M.cols() == robot_.mb().nrDof());
   assert(std::abs(M.determinant()) > 1e-5 && "Mass matrix is singular");
+
 
   // Get jacobian of the robot frame
   const rbd::MultiBody robot_mb = robot_.mb();
@@ -94,14 +94,14 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
 
   Eigen::MatrixXd J_dq_new = (-1.f) * ((c_res_+1.f)/(delta_t_/**lambda*/)) *(J_d_.transpose()*j_m_uninverted.inverse() -
     j_m*(J_d_*M.inverse()*J_.transpose()-J_*M.inverse()*M_d_*M.inverse()*J_.transpose() +
-      J_*M.inverse()*J_d_.transpose())*j_m_uninverted.inverse())*P_n*J_ +  (-1.f) * ((c_res_+1.f)/(delta_t_/**lambda*/)) *j_m*P_n*J_d_;// - j_m*P_n*J_;
-
+    J_*M.inverse()*J_d_.transpose())*j_m_uninverted.inverse())*P_n*J_ +
+    (-1.f) * ((c_res_+1.f)/(delta_t_/**lambda*/)) *j_m*P_n*J_d_;// - j_m*P_n*J_;
 
   q_d = tvm::dot(robot.q(),1)->value();
   q_dd = tvm::dot(robot.q(),2)->value();
 
   b_ = pre_multiplier_*J_dq_new * q_d;
-
+ 
   // These are now used as constants but if used in a final version should be taken in initialization from input parameters
   double timestep = 0.002;
 
@@ -113,42 +113,43 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   num_qd(3) = 0.0;
   num_qd(4) = 0.0;
   num_qd(5) = 0.0;
-  num_qd(6)  = current_vel.at(6);
-  num_qd(7)  = current_vel.at(7);
-  num_qd(8)  = current_vel.at(8);
-  num_qd(9)  = current_vel.at(9);
-  num_qd(10) = current_vel.at(10);
-  num_qd(11) = current_vel.at(11);
-  num_qd(12) = current_vel.at(0);
-  num_qd(13) = current_vel.at(1);
-  num_qd(14) = current_vel.at(2);
-  num_qd(15) = current_vel.at(3);
-  num_qd(16) = current_vel.at(4);
-  num_qd(17) = current_vel.at(5);
-  num_qd(18) = current_vel.at(12);
-  num_qd(19) = current_vel.at(13);
-  num_qd(20) = current_vel.at(14);
-  num_qd(21) = current_vel.at(15);
-  num_qd(22) = current_vel.at(16);
-  num_qd(23) = current_vel.at(35);
-  num_qd(24) = current_vel.at(36);
-  num_qd(25) = current_vel.at(37);
-  num_qd(26) = current_vel.at(38);
-  num_qd(27) = current_vel.at(39);
-  num_qd(28) = current_vel.at(40);
-  num_qd(29) = current_vel.at(41);
-  num_qd(30) = current_vel.at(42);
-  num_qd(31) = current_vel.at(43);
-  num_qd(32) = current_vel.at(17);
-  num_qd(33) = current_vel.at(18);
-  num_qd(34) = current_vel.at(19);
-  num_qd(35) = current_vel.at(20);
-  num_qd(36) = current_vel.at(21);
-  num_qd(37) = current_vel.at(22);
-  num_qd(38) = current_vel.at(23);
-  num_qd(39) = current_vel.at(24);
-  num_qd(40) = current_vel.at(25);
+  num_qd(6) = current_vel.at(6);//LCY
+  num_qd(7) = current_vel.at(7);//LCR
+  num_qd(8) = current_vel.at(8);//LCP
+  num_qd(9) = current_vel.at(9);//LKP
+  num_qd(10) = current_vel.at(10);//LAP
+  num_qd(11) = current_vel.at(11);//LAR
+  num_qd(12) = current_vel.at(0);//RCY
+  num_qd(13) = current_vel.at(1);//RCR
+  num_qd(14) = current_vel.at(2);//RCP
+  num_qd(15) = current_vel.at(3);//RKP
+  num_qd(16) = current_vel.at(4);//RAP
+  num_qd(17) = current_vel.at(5);//RAR
+  num_qd(18) = current_vel.at(12);//WP
+  num_qd(19) = current_vel.at(13);//WR
+  num_qd(20) = current_vel.at(14);//WY
+  num_qd(21) = current_vel.at(15);//HY
+  num_qd(22) = current_vel.at(16);//HP
+  num_qd(23) = current_vel.at(35);//LSC
+  num_qd(24) = current_vel.at(36);//LSP
+  num_qd(25) = current_vel.at(37);//LSR
+  num_qd(26) = current_vel.at(38);//LSY
+  num_qd(27) = current_vel.at(39);//LEP
+  num_qd(28) = current_vel.at(40);//LWRY
+  num_qd(29) = current_vel.at(41);//LWRR
+  num_qd(30) = current_vel.at(42);//LWRP
+  num_qd(31) = current_vel.at(43);//LHDY
+  num_qd(32) = current_vel.at(17);//RSC
+  num_qd(33) = current_vel.at(18);//RSP
+  num_qd(34) = current_vel.at(19);//RSR
+  num_qd(35) = current_vel.at(20);//RSY
+  num_qd(36) = current_vel.at(21);//REP
+  num_qd(37) = current_vel.at(22);//RWRY
+  num_qd(38) = current_vel.at(23);//RWRR
+  num_qd(39) = current_vel.at(24);//RWRP
+  num_qd(40) = current_vel.at(25);//RHDY
 
+  
   // Take the numerical derivative of the joint velocities
   for (int i = 0; i < robot_.mb().nrDof(); ++i)
   {
@@ -156,11 +157,13 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
     double past_speed = last_joint_velocities_(i);
     num_qdd(i) = (current_speed - past_speed) / timestep;
   }
+
   last_joint_velocities_ = num_qd;
 
   // now add the limits termwise, lambda*sng(tau_I_max - tau_I)*sqrt(tau_I_max - tau_I)
-  tau_imp_act = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_*num_qd;
-  tau_imp_pred = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_*q_d;
+  tau_imp_act = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_*num_qd;// the hypothesis of a full momentum back
+
+  tau_imp_pred = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_*q_d; 
 
   assert(b_.size() == robot_.mb().nrDof());
   assert(limit_high_.size() == robot_.mb().nrDof());
@@ -173,15 +176,15 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
     {
       if (diff_upper_(i) >= 0 /*|| diff2 <= 0*/)
       {
-        b_(i) += /*std::sqrt*/(lambda(i))*/*std::sqrt*/(diff_upper_(i));
-        constraint_right_side_(i) = -1.0*lambda(i)*/*std::sqrt*/(diff_upper_(i));
+        b_(i) += /*std::sqrt*/(lambda(i))* /*std::sqrt*/(diff_upper_(i));
+        constraint_right_side_(i) = -1.0*lambda(i)* /*std::sqrt*/(diff_upper_(i));
       } else if (diff_lower_(i) < 0)
       {
-        b_(i) -= /*std::sqrt*/(lambda(i))*/*std::sqrt*/(-1.0*diff_upper_(i));
+        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.0*diff_upper_(i));
         constraint_right_side_(i) = -1.0*lambda(i)*diff_upper_(i);
       }else
       {
-        b_(i) -= /*std::sqrt*/(lambda(i))*/*std::sqrt*/(-1.f*diff_upper_(i));
+        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.f*diff_upper_(i));
         constraint_right_side_(i) = -1.0*lambda(i)*diff_upper_(i);
       }
     }
@@ -191,27 +194,20 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
     {
       if (diff_lower_(i) < 0/* || diff2 >= 0*/)
       {
-        b_(i) -= /*std::sqrt*/(lambda(i))*/*std::sqrt*/(-1.0*diff_lower_(i));
-        constraint_right_side_(i) = -1.0*lambda(i)*/*std::sqrt*/(diff_lower_(i));
+        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.0*diff_lower_(i));
+        constraint_right_side_(i) = -1.0*lambda(i)* /*std::sqrt*/(diff_lower_(i));
       } else if (diff_upper_(i) >= 0)
       {
-        b_(i) += /*std::sqrt*/(lambda(i))*/*std::sqrt*/(diff_lower_(i));
+        b_(i) += /*std::sqrt*/(lambda(i))* /*std::sqrt*/(diff_lower_(i));
         constraint_right_side_(i) = -1.0*lambda(i)*diff_lower_(i);
       } else
       {
-        b_(i) += /*std::sqrt*/(lambda(i))*/*std::sqrt*/(diff_lower_(i));
+        b_(i) += /*std::sqrt*/(lambda(i))* /*std::sqrt*/(diff_lower_(i));
         constraint_right_side_(i) = -1.0*lambda(i)*diff_lower_(i);
       }
     }
   }
 
-
-   // last_joint_velocities_ = q;
-
-   // alpha_s_ += robot_.tvmRobot().alphaD()->value()*0.002;
-
-   // tau_imp2 = -1.f*j_m*P_n*J_*alpha_s_;
-   // tau_imp_act = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_*q_d;
    tau_imp_deriv = (-1.f*(c_res_+1)/delta_t_)*((J_d_.transpose()*j_m_uninverted.inverse() -
      j_m*(J_d_*M.inverse()*J_.transpose()-J_*M.inverse()*M_d_*M.inverse()*J_.transpose() +
      J_*M.inverse()*J_d_.transpose())*j_m_uninverted.inverse())*P_n*J_ * q_d
@@ -241,106 +237,52 @@ void ImpulseFunction::updateJacobian()
   Eigen::MatrixXd full_world_frame_jacobian(6, robot_.mb().nrDof());
   jac_.fullJacobian(robot_mb, world_frame_jacobian, full_world_frame_jacobian);
 
+  const Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
+  const Eigen::Matrix3d MobilityMatrix = linear_jacobian*M.inverse()*linear_jacobian.transpose();
+  double effective_mass=1/(normal_.transpose()*MobilityMatrix*normal_);
+
   assert(full_world_frame_jacobian.cols() == robot_.mb().nrDof());
 
   // // Generate necessary matrices
   Eigen::MatrixXd j_m_uninverted = /*full_world_frame_jacobian.transpose() * */(full_world_frame_jacobian * M.inverse() * full_world_frame_jacobian.transpose());
   assert(std::abs(j_m_uninverted.determinant()) > 1e-5 && "j_m_uninverted is singular");
   Eigen::MatrixXd j_m_before_premult_J = j_m_uninverted.inverse();
-
-Eigen::MatrixXd j_m = full_world_frame_jacobian.transpose() * j_m_uninverted.inverse();
-
+  Eigen::MatrixXd j_m = full_world_frame_jacobian.transpose() * j_m_uninverted.inverse();
+  
   J_ddq = -1.f * ((c_res_+1.f)/(delta_t_/**lambda*/)) * pre_multiplier_ * j_m * P_n * full_world_frame_jacobian;// + 0.5*0.002*J_dq_new;              // multiplies ddq variable
-  // J_ddq = -1.f * j_m * P_n * full_world_frame_jacobian;              // multiplies ddq variable
+  // J_ddq = -1.f * j_m * P_n * full_world_frame_jacobian;// multiplies ddq variable
 
   splitJacobian(J_ddq, robot.alphaD());
 }
 
 void ImpulseFunction::getLambda()
 {
-  double lambda_increment = (lambda_high - lambda_low)/static_cast<double>(lambda_growing_steps);
-  for (int i = 0; i < robot_.mb().nrDof(); ++i)
+    double lambda_increment = (lambda_high - lambda_low)/static_cast<double>(lambda_growing_steps);
+
+for (int i = 0; i < robot_.mb().nrDof(); ++i)
   {
-    // double tau_I = tau_imp_act(i);
-    diff_upper_(i) = tau_imp_pred(i) - limit_multiplier_*limit_high_(i);
+    diff_upper_(i) = tau_imp_pred(i) - limit_multiplier_*limit_high_(i);//limit multiplier is a way to change the threshold value
     diff_lower_(i) = tau_imp_pred(i) - limit_multiplier_*limit_low_(i);
-    if(diff_lower_(i) < 0 || diff_upper_(i) > 0)
-    {
-      if(lambda(i) < lambda_high)
-      {
-        lambda(i) += lambda_increment;
-      } else
-      {
-        lambda(i) = lambda_high;
-      }
-      high_lambda_latch_[i] = true;
-    } else
-    {
-      if(high_lambda_latch_[i])
-      {
-        high_lambda_latch_count_(i) += 1;
-        if(high_lambda_latch_count_(i) >= high_lambda_latch_max_)
-        {
-          high_lambda_latch_[i] = false;
-          high_lambda_latch_count_(i) = 0;
-        }
-        if(lambda(i) < lambda_high)
-        {
-          lambda(i) += lambda_increment;
-        } else
-        {
-          lambda(i) = lambda_high;
-        }
-      } else
-      {
-        if(lambda(i) > lambda_low)
-        {
-          lambda(i) -= lambda_increment;
-        } else
-        {
-          lambda(i) = lambda_low;
-        }
-      }
-    }
+
+
+    if(diff_upper_(i) || diff_lower_(i))
+      lambda(i)=lambda_high;
+    else 
+      lambda(i)=lambda_low;
   }
-
-
 }
 
-// Eigen::VectorXd & ImpulseFunction::JointPos()
-// {
-//   q = robot_.tvmRobot().q()->value();
-//   return q;
-// }
-//
-// Eigen::VectorXd & ImpulseFunction::JointVel()
-// {
-//   alpha = robot_.tvmRobot().alpha()->value();
-//   return alpha;
-// }
-//
-// Eigen::VectorXd & ImpulseFunction::JointVels()
-// {
-//   return alpha_s_;
-// }
-//
+
+
 Eigen::VectorXd & ImpulseFunction::JointAcc()
 {
   alpha_d = robot_.tvmRobot().alphaD()->value();
   return alpha_d;
 }
-//
-// Eigen::VectorXd & ImpulseFunction::JointVelUsed()
-// {
-//   return q_d;
-// }
-//
-// Eigen::VectorXd & ImpulseFunction::JointAccUsed()
-// {
-//   q_dd = q_ddot_var_->value();
-//   return q_dd;
-// }
-//
+
+
+
+
 Eigen::VectorXd & ImpulseFunction::JointAccNum()
 {
   return num_qdd;

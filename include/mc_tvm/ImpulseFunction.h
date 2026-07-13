@@ -45,12 +45,17 @@ public:
   Eigen::VectorXd & EffectiveLambda(){ return lambda; }
 
   Eigen::VectorXd & ImpulsiveTorquePrediction(){ return tau_imp_pred; }
+
+  Eigen::VectorXd & ImpulsiveTorqueTrueSpeed(){ return tau_imp_true_speed; }
   //
+  Eigen::VectorXd & ImpulsiveTorqueTrueForce(){ return tau_imp_true_force; }
+
   Eigen::VectorXd & ActualImpulsiveTorquePrediction(){ return tau_imp_act; }
 
   Eigen::VectorXd & ImpulsiveTorquePredictionDerivative(){ return tau_imp_deriv; }
 
   Eigen::VectorXd & ImpulsiveTorquePredictionDerivativeNum(){ return tau_imp_deriv_num; }
+
 
   Eigen::VectorXd & JointAcc();
 
@@ -60,6 +65,11 @@ public:
 
   Eigen::VectorXd & RightSide(){ return constraint_right_side_; }
 
+  Eigen::VectorXd last_joint_velocities_;
+  
+  Eigen::VectorXd end_effector_vel;
+
+  
 protected:
   void updateb();
 
@@ -82,6 +92,7 @@ protected:
   const Eigen::VectorXd & limit_low_;
   const bool enforce_high_limit_;
 
+
   Eigen::VectorXd diff_upper_;
   Eigen::VectorXd diff_lower_;
   std::vector<bool> high_lambda_latch_;
@@ -100,12 +111,13 @@ protected:
 
   Eigen::VectorXd lambda;
 
+  Eigen::VectorXd tau_imp_true_speed;
+  Eigen::VectorXd tau_imp_true_force;
   Eigen::VectorXd tau_imp_pred;
   Eigen::VectorXd tau_imp_act;
   Eigen::VectorXd tau_imp_deriv;
   Eigen::VectorXd tau_imp_deriv_num;
 
-  Eigen::VectorXd last_joint_velocities_;
   Eigen::VectorXd num_qdd;
   Eigen::VectorXd num_qd;
 

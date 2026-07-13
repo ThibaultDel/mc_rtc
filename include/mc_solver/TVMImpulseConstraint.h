@@ -12,7 +12,7 @@
 #include <tvm/hint/internal/DiagonalCalculator.h>
 #include <tvm/task_dynamics/Constant.h>
 #include <tvm/task_dynamics/None.h>
-
+#include <mc_tvm/ImpulseFunction.h>
 
 namespace mc_solver
 {

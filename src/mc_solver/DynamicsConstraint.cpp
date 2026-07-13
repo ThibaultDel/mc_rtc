@@ -11,9 +11,9 @@
 
 #include <Tasks/Bounds.h>
 
-#include "TVMKinematicsConstraint.h"
+#include <mc_solver/TVMImpulseConstraint.h>
+#include <mc_solver/TVMKinematicsConstraint.h>
 #include "mc_rtc/logging.h"
-
 namespace mc_solver
 {
 
