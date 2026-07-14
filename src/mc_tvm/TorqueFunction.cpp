@@ -40,8 +40,8 @@ void TorqueFunction::updateb() // Ax + b = 0
   if(compensateExternalForces_) { b_ += torque_extForces_; }
   if(compensateGravity_) { b_ -= torque_gravity_; }
 
-  // If robot is floating base, the first 6 DoFs are not actuated, so we set the corresponding entries in b_ to 0
-  if(j0_ == 1) { b_.head(6).setZero(); }
+  // // If robot is floating base, the first 6 DoFs are not actuated, so we set the corresponding entries in b_ to 0
+  // if(j0_ == 1) { b_.head(6).setZero(); }
 }
 
 void TorqueFunction::reset()

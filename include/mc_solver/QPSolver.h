@@ -301,6 +301,8 @@ public:
   /** Returns the controller owning this instance (if any) */
   inline mc_control::MCController * controller() noexcept { return controller_; }
 
+  void setNyquistFraction(double fraction) noexcept { nyquistFraction = fraction; }
+
 protected:
   Backend backend_;
   mc_rbdyn::RobotsPtr robots_p;
@@ -338,6 +340,8 @@ protected:
 
   /** This is called anytime a constraint is removed, the passed constraint is not always a dynamics constraint */
   virtual void removeDynamicsConstraint(mc_solver::ConstraintSet * maybe_dynamics) = 0;
+
+  double nyquistFraction = 0.95; // 95% of Nyquist
 };
 
 } // namespace mc_solver

@@ -17,6 +17,8 @@
 #include <tvm/solver/defaultLeastSquareSolver.h>
 #include <tvm/task_dynamics/ProportionalDerivative.h>
 
+#include <RBDyn/FD.h>
+
 namespace mc_solver
 {
 
@@ -93,6 +95,11 @@ double TVMQPSolver::solveAndBuildTime()
 
 bool TVMQPSolver::run_impl(FeedbackType fType)
 {
+  if(fType != FeedbackType::OpenLoopWithRealFloatingBase && lowPassFilterStateInitialized_)
+  {
+    lowPassFilterStateInitialized_ = false;
+  }
+
   switch(fType)
   {
     case FeedbackType::None:
@@ -392,29 +399,115 @@ bool TVMQPSolver::runOpenLoop()
 // Forward euler integration
 bool TVMQPSolver::runOpenLoopWithRealFloatingBase()
 {
-
-  for(size_t i = 0; i < robots().size(); ++i)
-  {
-    auto & robot = robots_p->robot(i);
-
-    if(robot.mb().nrDof() == 0) { continue; }
-    if(robot.mb().joint(0).type() != rbd::Joint::Free) { continue; }
-
-    const auto & realRobot = realRobots().robot(i);
-    robot.q()[0] = realRobot.q()[0];
-    robot.alpha()[0] = realRobot.alpha()[0];
-
-    robot.forwardKinematics();
-    robot.forwardVelocity();
-    robot.forwardAcceleration();
-  }
-
   if(!runCommon()) { return false; }
 
   for(auto & robot : *robots_p)
   {
     if(robot.mb().nrDof() == 0) { continue; }
-    updateRobot(robot);
+    auto & tvm_robot = robot.tvmRobot();
+    rbd::vectorToParam(tvm_robot.tau()->value(), robot.jointTorque());
+    rbd::vectorToParam(tvm_robot.alphaD()->value(), robot.alphaD());
+
+    // robot.eulerIntegration(timeStep);
+    const auto & joints = robot.mb().joints();
+    for(std::size_t i = 0; i < joints.size(); ++i)
+    {
+      switch(joints[i].type())
+      {
+        case rbd::Joint::Rev:
+        case rbd::Joint::Prism:
+        {
+          robot.alpha()[i][0] += timeStep * robot.alphaD()[i][0];
+          robot.q()[i][0] += timeStep * robot.alpha()[i][0];
+          break;
+        }
+        default:
+          break;
+      }
+    }
+
+    if(!lowPassFilterStateInitialized_)
+    {
+      qFiltered_ = robot.q();
+      alphaFiltered_ = robot.alpha();
+      lowPassFilterStateInitialized_ = true;
+      q_hist_.clear();
+      a_hist_.clear();
+      for(size_t i = 0; i < 2; ++i)
+      {
+        q_hist_.push_back(robot.q());
+        a_hist_.push_back(robot.alpha());
+      }
+    }
+    else
+    {
+      // double alpha = (M_PI * nyquistFraction) /
+      //          (1.0 + M_PI * nyquistFraction);
+
+      // for(std::size_t i = 0; i < joints.size(); ++i)
+      // {
+      //   switch(joints[i].type())
+      //   {
+      //     case rbd::Joint::Rev:
+      //     case rbd::Joint::Prism:
+      //     {
+      //       qFiltered_[i][0] = qFiltered_[i][0] + alpha * (robot.q()[i][0] - qFiltered_[i][0]);
+      //       alphaFiltered_[i][0] = alphaFiltered_[i][0] + alpha * (robot.alpha()[i][0] - alphaFiltered_[i][0]);
+      //       robot.q()[i][0] = qFiltered_[i][0];
+      //       robot.alpha()[i][0] = alphaFiltered_[i][0];
+      //       break;
+      //     }
+      //     default:
+      //       break;
+      //   }
+      // }
+
+      // update raw history buffer: q_hist_[0] = x[k], q_hist_[1] = x[k-1]
+      q_hist_[1] = q_hist_[0];
+      a_hist_[1] = a_hist_[0];
+      q_hist_[0] = robot.q();
+      a_hist_[0] = robot.alpha();
+
+      // Tustin (bilinear-transform, pre-warped) one-pole low-pass:
+      //   tau  = tan(pi * nyquistFraction / 2)
+      //   coefB = tau / (1 + tau),   coefA = (1 - tau) / (1 + tau)
+      //   y[k] = coefB*(x[k] + x[k-1]) + coefA*y[k-1]
+      // Unlike the EMA above, this has an EXACT zero at Nyquist for any
+      // nyquistFraction, so it can be set well below 0.99 (e.g. 0.6-0.8) and
+      // still cut near-Nyquist content far more than the EMA ever did at 0.99.
+      double tau = std::tan(M_PI * nyquistFraction / 2.0);
+      double coefB = tau / (1.0 + tau);
+      double coefA = (1.0 - tau) / (1.0 + tau);
+
+      for(std::size_t i = 0; i < joints.size(); ++i)
+      {
+        switch(joints[i].type())
+        {
+          case rbd::Joint::Rev:
+          case rbd::Joint::Prism:
+          {
+            double q_filt = coefB * (q_hist_[0][i][0] + q_hist_[1][i][0]) + coefA * qFiltered_[i][0];
+            double a_filt = coefB * (a_hist_[0][i][0] + a_hist_[1][i][0]) + coefA * alphaFiltered_[i][0];
+
+            qFiltered_[i][0] = q_filt;
+            alphaFiltered_[i][0] = a_filt;
+
+            robot.q()[i][0] = q_filt;
+            robot.alpha()[i][0] = a_filt;
+            break;
+          }
+          default:
+            break;
+        }
+      }
+    }
+
+    const auto & realRobot = realRobots().robot(robot.robotIndex());
+    robot.q()[0] = realRobot.q()[0];
+    robot.alpha()[0] = realRobot.alpha()[0];
+    robot.forwardKinematics();
+    robot.forwardVelocity();
+    robot.forwardAcceleration();
   }
 
   return true;

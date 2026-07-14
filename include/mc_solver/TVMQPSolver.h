@@ -11,6 +11,7 @@
 #include <tvm/ControlProblem.h>
 #include <tvm/LinearizedControlProblem.h>
 #include <tvm/scheme/WeightedLeastSquares.h>
+#include <vector>
 
 namespace mc_tvm
 {
@@ -102,6 +103,13 @@ private:
   bool runOpenLoop();
   /** Run without feedback (open-loop) but with the real floating base */
   bool runOpenLoopWithRealFloatingBase();
+  bool lowPassFilterStateInitialized_ = false;
+  std::vector<std::vector<double>> alphaFiltered_;
+  std::vector<std::vector<double>> qFiltered_;
+
+  std::vector<std::vector<std::vector<double>>> q_hist_;
+  std::vector<std::vector<std::vector<double>>> a_hist_;
+
   /** Run with encoders' feedback */
   bool runJointsFeedback(bool wVelocity);
 
