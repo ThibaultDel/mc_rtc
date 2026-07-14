@@ -283,17 +283,7 @@ macro(find_description_package PACKAGE)
          message(
           FATAL_ERROR
             "Your ${PACKAGE} does not define where to find the data, please update."
-<<<<<<< HEAD
-         )
-       else()
-         set(${PACKAGE_PATH_VAR} "${${PACKAGE}_DIR}/..")
-       endif()
-    else()
-      set(${PACKAGE_PATH_VAR} "${${PACKAGE}_SOURCE_PREFIX}")
-    endif()
-  else()
-    set(${PACKAGE_PATH_VAR} "${${PACKAGE}_INSTALL_PREFIX}")
-=======
+
         )
       else()
         set("${PACKAGE_PATH_VAR}" "${${PACKAGE}_SOURCE_PREFIX}")
@@ -303,7 +293,7 @@ macro(find_description_package PACKAGE)
     endif()
     # Cleanup the path provided by CMake
     get_filename_component("${PACKAGE_PATH_VAR}" "${${PACKAGE_PATH_VAR}}" REALPATH)
->>>>>>> bastien/hrp5p
+
   endif()
   # Cleanup the path provided by CMake
   get_filename_component(${PACKAGE_PATH_VAR} "${${PACKAGE_PATH_VAR}}" REALPATH)
