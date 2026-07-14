@@ -3,6 +3,11 @@
 #include <mc_rtc/gui/Checkbox.h>
 #include <mc_tvm/Robot.h>
 #include "mc_rtc/gui/ArrayInput.h"
+<<<<<<< HEAD
+=======
+#include "mc_rtc/logging.h"
+#include <Eigen/src/Core/Matrix.h>
+>>>>>>> bastien/hrp5p
 
 namespace mc_tasks
 {
@@ -12,6 +17,7 @@ CompliantPostureTask::CompliantPostureTask(const mc_solver::QPSolver & solver,
                                            double stiffness,
                                            double weight)
 : PostureTask(solver, rIndex, stiffness, weight),
+<<<<<<< HEAD
   gamma_(Eigen::VectorXd::Zero(solver.robots().robot(rIndex).mb().nrDof())),
   tvm_robot_(solver.robots().robot(rIndex).tvmRobot()),
   refAccel_(Eigen::VectorXd::Zero(solver.robots().robot(rIndex).mb().nrDof()))
@@ -20,6 +26,22 @@ CompliantPostureTask::CompliantPostureTask(const mc_solver::QPSolver & solver,
     mc_rtc::log::error_and_throw<std::runtime_error>(
         "[mc_tasks] Can't use CompliantEndEffectorTask with {} backend, please use TVM or TVMHierarchical backend",
         backend_);
+=======
+  gamma_(Eigen::VectorXd::Zero(solver.robots().robot(rIndex).mb().nrDof())), robot_(solver.robots().robot(rIndex)),
+  tvm_robot_(solver.robots().robot(rIndex).tvmRobot()),
+  refAccel_(Eigen::VectorXd::Zero(solver.robots().robot(rIndex).mb().nrDof()))
+{
+  switch(backend_)
+  {
+    case Backend::Tasks:
+    case Backend::TVM:
+      break;
+    default:
+      mc_rtc::log::error_and_throw<std::runtime_error>(
+          "[mc_tasks] Can't use CompliantPostureTask with {} backend, please use Tasks or TVM backend", backend_);
+      break;
+  }
+>>>>>>> bastien/hrp5p
   name_ = std::string("compliant_posture_") + solver.robots().robot(rIndex).name();
   type_ = "compliant_posture";
 }
@@ -31,17 +53,52 @@ void CompliantPostureTask::refAccel(const Eigen::VectorXd & refAccel) noexcept
 
 void CompliantPostureTask::update(mc_solver::QPSolver & solver)
 {
+<<<<<<< HEAD
   Eigen::VectorXd disturbance = tvm_robot_.alphaDExternal();
   // mc_rtc::log::info("Ref accel from disturbance : {}", disturbance.transpose());
   Eigen::VectorXd disturbedAccel = refAccel_ + gamma_.asDiagonal() * disturbance;
   PostureTask::refAccel(disturbedAccel);
   PostureTask::update(solver);
+=======
+  Eigen::VectorXd disturbance;
+  Eigen::VectorXd acc;
+  if(backend_ == Backend::Tasks)
+  {
+    if(robot_.compensationTorquesAcc()) { acc = robot_.compensationTorquesAcc().value(); }
+    else
+    {
+      acc = robot_.externalTorquesAcc();
+    }
+  }
+  else
+  {
+    if(tvm_robot_.alphaDCompensation()) { acc = tvm_robot_.alphaDCompensation().value(); }
+    else
+    {
+      acc = tvm_robot_.alphaDExternal();
+    }
+  }
+  disturbance = gamma_.asDiagonal() * acc;
+
+  // mc_rtc::log::info("Ref accel from disturbance : {}", disturbance.transpose());
+  // mc_rtc::log::info("Ref accel : {}", refAccel_.transpose());
+  Eigen::VectorXd disturbedAccel = refAccel_ + disturbance;
+  PostureTask::refAccel(disturbedAccel);
+  // PostureTask::update(solver);
+>>>>>>> bastien/hrp5p
 }
 
 void CompliantPostureTask::makeCompliant(bool compliance)
 {
   if(compliance) { gamma_.setOnes(); }
+<<<<<<< HEAD
   else { gamma_.setZero(); }
+=======
+  else
+  {
+    gamma_.setZero();
+  }
+>>>>>>> bastien/hrp5p
 }
 
 void CompliantPostureTask::makeCompliant(Eigen::VectorXd gamma)
@@ -56,13 +113,20 @@ bool CompliantPostureTask::isCompliant(void)
 
 void CompliantPostureTask::addToGUI(mc_rtc::gui::StateBuilder & gui)
 {
+<<<<<<< HEAD
+=======
+  PostureTask::addToGUI(gui);
+>>>>>>> bastien/hrp5p
   gui.addElement(
       {"Tasks", name_, "Compliance"},
       mc_rtc::gui::Checkbox(
           "Compliance is active", [this]() { return isCompliant(); }, [this]() { makeCompliant(!isCompliant()); }),
       mc_rtc::gui::ArrayInput("Gamma", {"Joint_1", "Joint_2", "Joint_3", "Joint_4", "Joint_5", "Joint_6", "Joint_7"},
                               gamma_));
+<<<<<<< HEAD
   PostureTask::addToGUI(gui);
+=======
+>>>>>>> bastien/hrp5p
 }
 
 } // namespace mc_tasks

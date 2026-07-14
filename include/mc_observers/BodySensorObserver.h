@@ -89,6 +89,7 @@ protected:
   std::string updateRobot_;
   bool updatePose_ = true;
   bool updateVel_ = true;
+  bool updateAcc_ = false;
 
   bool logPos_ = true;
   bool logVel_ = true;

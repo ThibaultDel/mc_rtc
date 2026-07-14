@@ -28,12 +28,19 @@ public:
    * \param robotIndex The index of the robot affected by this constraint
    * \param timeStep Solver timestep
    * \param infTorque If true, ignore the torque limits set in the robot model
+   * \param compensateExtTorques If true, compensates external disturbances using a feedforward torque signal. The
+   * constraint will search for the compensation value in robot by calling `compensationTorques()` method, if not an
+   * estimation of external torques acting on the robot will be used by calling `externalTorques()` method.
    */
   DynamicsConstraint(const mc_rbdyn::Robots & robots,
                      unsigned int robotIndex,
                      double timeStep,
                      bool infTorque = false,
+<<<<<<< HEAD
                      bool compensateExternalForces = false);
+=======
+                     bool compensateExtTorques = true);
+>>>>>>> bastien/hrp5p
 
   /** Constructor
    * Builds a damped joint limits constraint and a motion constr depending on
@@ -46,6 +53,9 @@ public:
    * offset}
    * \param velocityPercent Maximum joint velocity percentage, 0.5 is advised
    * \param infTorque If true, ignore the torque limits set in the robot model
+   * \param compensateExtTorques If true, compensates external disturbances using a feedforward torque signal. The
+   * constraint will search for the compensation value in robot by calling `compensationTorques()` method, if not an
+   * estimation of external torques acting on the robot will be used by calling `externalTorques()` method.
    */
   DynamicsConstraint(const mc_rbdyn::Robots & robots,
                      unsigned int robotIndex,
@@ -53,24 +63,51 @@ public:
                      const std::array<double, 3> & damper,
                      double velocityPercent = 1.0,
                      bool infTorque = false,
+<<<<<<< HEAD
                      bool compensateExternalForces = false);
 
   /** Constructor
    * Builds a damped joint limits constraint and a motion constr depending on
    * the nature of the robot
    * See tasks::qp::MotionConstr for details on the latter one
+=======
+                     bool compensateExtTorques = true);
+
+  /** Constructor
+   * Builds a CBF joint limits constraint and a motion constr depending on
+   * the nature of the robot
+   * See details of the CBF constraint in Safe Execution of RL Policies via Acceleration-based CBF-QP Constraint
+   * Enforcement for Real-World Robotic Deployments, B.Muraccioli et al. (2026) See tasks::qp::MotionConstr for details
+   * on the latter one
+>>>>>>> bastien/hrp5p
    * \param robots The robots including the robot affected by this constraint
    * \param robotIndex The index of the robot affected by this constraint
    * \param damperSecond Value of the damper {interaction distance, safety distance,
    * offset, amortization margin, lambda}
    * \param velocityPercent Maximum joint velocity percentage, 0.5 is advised
+<<<<<<< HEAD
    * \param infTorque If true, ignore the torque limits set in the robot model
+=======
+   * \param compensateExtTorques If true, external torques are added to the dynamic model constraint
+>>>>>>> bastien/hrp5p
    */
   DynamicsConstraint(const mc_rbdyn::Robots & robots,
                      unsigned int robotIndex,
                      const std::array<double, 5> & damperSecond,
                      double velocityPercent = 1.0,
+<<<<<<< HEAD
                      bool compensateExternalForces = false);
+=======
+                     bool compensateExtTorques = true);
+
+  /** \brief Update the constraint
+   *
+   * This is called at every iteration of the controller once the constraint has been added to a solver
+   *
+   * \param solver Solver in which the constraint has been inserted
+   */
+  void update(QPSolver & solver) override;
+>>>>>>> bastien/hrp5p
 
   /** Returns the tasks::qp::MotionConstr
    *
@@ -110,6 +147,9 @@ protected:
   mc_rtc::void_ptr motion_constr_;
   /** Robot index for the constraint */
   unsigned int robotIndex_;
+
+private:
+  void addLogging(QPSolver & solver);
 };
 
 } // namespace mc_solver

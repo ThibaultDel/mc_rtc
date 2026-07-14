@@ -2,26 +2,20 @@
  * Copyright 2015-2019 CNRS-UM LIRMM, CNRS-AIST JRL
  */
 
-#ifndef JVRC_DESCRIPTION_PATH
-#  error "JVRC_DESCRIPTION_PATH must be defined to build this RobotModule"
-#endif
-
-#define JVRC_VAL(x) #x
-#define JVRC_VAL_VAL(x) JVRC_VAL(x)
-
 #include "jvrc1.h"
 
 #include <mc_rbdyn/Device.h>
 #include <mc_rbdyn/RobotModuleMacros.h>
 
+#include <mc_rtc/config.h>
 #include <mc_rtc/logging.h>
 
 #include <RBDyn/parsers/urdf.h>
 
-#include <boost/filesystem.hpp>
+#include <filesystem>
 
 #include <fstream>
-namespace bfs = boost::filesystem;
+namespace fs = std::filesystem;
 
 namespace mc_robots
 {
@@ -33,8 +27,7 @@ mc_rbdyn::DevicePtr JVRC1DummySpeaker::clone() const
   return mc_rbdyn::DevicePtr(dummy);
 }
 
-JVRC1RobotModule::JVRC1RobotModule(bool fixed, bool filter_mimics)
-: RobotModule(std::string(JVRC_VAL_VAL(JVRC_DESCRIPTION_PATH)), "jvrc1")
+JVRC1RobotModule::JVRC1RobotModule(bool fixed, bool filter_mimics) : RobotModule(mc_rtc::JVRC_DESCRIPTION_PATH, "jvrc1")
 {
   _canonicalParameters = {"JVRC1"};
 
@@ -72,12 +65,12 @@ JVRC1RobotModule::JVRC1RobotModule(bool fixed, bool filter_mimics)
   _devices.emplace_back(new JVRC1DummySpeaker{"DummySpeaker"});
 
   std::string convexPath = path + "/convex/" + name + "/";
-  bfs::path p(convexPath);
-  if(bfs::exists(p) && bfs::is_directory(p))
+  fs::path p(convexPath);
+  if(fs::exists(p) && fs::is_directory(p))
   {
-    std::vector<bfs::path> files;
-    std::copy(bfs::directory_iterator(p), bfs::directory_iterator(), std::back_inserter(files));
-    for(const bfs::path & file : files)
+    std::vector<fs::path> files;
+    for(const auto & entry : fs::directory_iterator(p)) { files.push_back(entry.path()); }
+    for(const fs::path & file : files)
     {
       size_t off = file.filename().string().rfind("-ch.txt");
       if(off != std::string::npos)

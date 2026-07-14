@@ -20,7 +20,11 @@ struct TVMKinematicsConstraint
 {
   const mc_rbdyn::Robot & robot_;
   std::array<double, 3> damper_;
+<<<<<<< HEAD:include/mc_solver/TVMKinematicsConstraint.h
   std::array<double, 5> damperSecond_; // Second order dynamics dampers
+=======
+  std::array<double, 5> damperSecond_; // Only used for CBF constraint
+>>>>>>> bastien/hrp5p:src/mc_solver/TVMKinematicsConstraint.h
   double velocityPercent_;
   std::vector<tvm::TaskWithRequirementsPtr> constraints_;
   std::vector<tvm::TaskWithRequirementsPtr> mimics_constraints_;

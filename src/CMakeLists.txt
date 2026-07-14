@@ -44,7 +44,6 @@ macro(install_mc_rtc_lib_common MC_LIB KWD)
   if(MC_RTC_BUILD_STATIC)
     target_compile_definitions(${MC_LIB} ${KWD} MC_RTC_BUILD_STATIC)
   endif()
-  add_library(mc_rtc::${MC_LIB} ALIAS ${MC_LIB})
 endmacro()
 
 macro(install_mc_rtc_header_lib MC_LIB)
@@ -127,6 +126,7 @@ set(mc_rtc_utils_HDR
     ../include/mc_rtc/ConfigurationHelpers.h
     ../include/mc_rtc/MessagePackBuilder.h
     ../include/mc_rtc/logging.h
+    ../include/mc_rtc/fmt_formatters.h
     ../include/mc_rtc/log/FlatLog.h
     ../include/mc_rtc/log/iterate_binary_log.h
     ../include/mc_rtc/log/Logger.h
@@ -143,6 +143,9 @@ set(mc_rtc_utils_HDR
     ../include/mc_rtc/shared.h
     ../include/mc_rtc/visual_utils.h
     ../include/mc_rtc/utils/heatmap.h
+    ../include/mc_rtc/clock.h
+    ../include/mc_rtc/threading/AsyncJob.h
+    ../include/mc_rtc/SignalSlot.h
 )
 
 add_library(mc_rtc_utils SHARED ${mc_rtc_utils_SRC} ${mc_rtc_utils_HDR})
@@ -151,15 +154,16 @@ target_include_directories(mc_rtc_utils PRIVATE "${PROJECT_BINARY_DIR}/include/m
 target_compile_definitions(mc_rtc_utils PUBLIC ${BOOST_USE_STACKTRACE_DEFINE})
 target_link_libraries(
   mc_rtc_utils
-  PUBLIC SpaceVecAlg::SpaceVecAlg
-         Boost::${BOOST_STACKTRACE}
-         Boost::filesystem
-         Boost::disable_autolinking
-         ${YAML_CPP_TARGET}
-         spdlog::spdlog
-         ${CMAKE_DL_LIBS}
+  PUBLIC SpaceVecAlg::SpaceVecAlg Boost::${BOOST_STACKTRACE} Boost::disable_autolinking
+         ${YAML_CPP_TARGET} spdlog::spdlog ${CMAKE_DL_LIBS}
   PRIVATE $<BUILD_INTERFACE:mc_rtc_3rd_party::RapidJSON>
 )
+# link with ros-agnostic functions in mc_rtc_ros_compat
+# this is done to keep mc-rtc ros-agnostic, and allow mc_rtc_ros to link against mc_rtc_utils
+target_link_libraries(mc_rtc_utils PUBLIC mc_rtc_ros_compat::mc_rtc_ros_compat)
+if(TARGET mc_rtc_3rd_party::ROS)
+  target_link_libraries(mc_rtc_utils PRIVATE mc_rtc_3rd_party::ROS)
+endif()
 if(TARGET PkgConfig::mc_rtc_3rd_party_libnotify)
   target_link_libraries(mc_rtc_utils PUBLIC PkgConfig::mc_rtc_3rd_party_libnotify)
   target_compile_definitions(mc_rtc_utils PRIVATE MC_RTC_HAS_LIBNOTIFY)
@@ -189,7 +193,10 @@ else()
     mc_rtc_utils PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/3rd-party/mpack>
   )
 endif()
-if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" AND NOT EMSCRIPTEN)
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang"
+   AND NOT EMSCRIPTEN
+   AND NOT APPLE
+)
   target_link_libraries(mc_rtc_utils PUBLIC atomic)
 endif()
 install_mc_rtc_lib(mc_rtc_utils)
@@ -200,9 +207,7 @@ set(mc_rtc_loader_HDR ../include/mc_rtc/loader.h ../include/mc_rtc/loader_api.h)
 
 add_library(mc_rtc_loader SHARED ${mc_rtc_loader_SRC} ${mc_rtc_loader_HDR})
 set_target_properties(mc_rtc_loader PROPERTIES COMPILE_FLAGS "-DMC_RTC_LOADER_EXPORTS")
-target_link_libraries(
-  mc_rtc_loader PUBLIC Boost::filesystem Boost::disable_autolinking mc_rtc_utils
-)
+target_link_libraries(mc_rtc_loader PUBLIC Boost::disable_autolinking mc_rtc_utils)
 if(NOT Boost_USE_STATIC_LIBS)
   target_link_libraries(mc_rtc_loader PUBLIC Boost::dynamic_linking)
 endif()
@@ -232,6 +237,7 @@ set(mc_rbdyn_SRC
     mc_rbdyn/RobotModule.cpp
     mc_rbdyn/RobotModule_visual.cpp
     mc_rbdyn/inertia.cpp
+    mc_rbdyn/RobotModule_connect.cpp
     mc_rbdyn/configuration_io.cpp
     mc_rbdyn/ZMP.cpp
     mc_control/generic_gripper.cpp
@@ -317,6 +323,9 @@ set(mc_tvm_HDR
     ${mc_tvm_HDR_DIR}/RobotFrame.h
     ${mc_tvm_HDR_DIR}/TransformFunction.h
     ${mc_tvm_HDR_DIR}/VectorOrientationFunction.h
+    ${mc_tvm_HDR_DIR}/TorqueFunction.h
+    ${mc_tvm_HDR_DIR}/ForceFunction.h
+    ${mc_tvm_HDR_DIR}/WrenchFunction.h
 )
 set(mc_tvm_SRC
     mc_tvm/CollisionFunction.cpp
@@ -344,33 +353,43 @@ set(mc_tvm_SRC
     mc_tvm/RobotFrame.cpp
     mc_tvm/TransformFunction.cpp
     mc_tvm/VectorOrientationFunction.cpp
+    mc_tvm/TorqueFunction.cpp
+    mc_tvm/ForceFunction.cpp
+    mc_tvm/WrenchFunction.cpp
 )
 
 add_library(mc_rbdyn SHARED ${mc_rbdyn_SRC} ${mc_rbdyn_HDR} ${mc_tvm_SRC} ${mc_tvm_HDR})
 target_compile_definitions(mc_rbdyn PRIVATE "-DMC_RBDYN_EXPORTS" "-DMC_TVM_EXPORTS")
 target_link_libraries(
   mc_rbdyn
-  PUBLIC RBDyn::Parsers
-         Tasks::Tasks
-         mc_rtc_loader
-         mc_rtc_utils
-         mc_filter
-         GEOS::geos
-         TVM::TVM
+  PUBLIC
+    RBDyn::Parsers
+    Tasks::Tasks
+    mc_rtc_loader
+    mc_rtc_utils
+    mc_filter
+    GEOS::geos
+    TVM::TVM
+    mesh_sampling::mesh_sampling # transitively links against Qhull::qhull_r Qhull::qhullcpp
 )
 target_compile_definitions(mc_rbdyn PUBLIC -DUSE_UNSTABLE_GEOS_CPP_API)
-# qhull
+
+# TODO: restore static qhull build
 if(MC_RTC_BUILD_STATIC)
-  target_link_libraries(
-    mc_rbdyn PRIVATE "-Wl,--no-whole-archive" qhullstatic_r "-Wl,--no-whole-archive"
-                     qhullcpp
+  message(
+    FATAL_ERROR
+      "MC_RTC_BUILD_STATIC: building against a static qhull version is no longer supported since the introductin of mesh_sampling. To fix it, you need to compile mesh_sampling against a static (reentrant) version of qhull as well."
   )
-else()
-  target_link_libraries(mc_rbdyn PRIVATE qhullstatic_r qhullcpp)
+  # target_link_libraries(
+  #   mc_rbdyn PRIVATE "-Wl,--no-whole-archive" Qhull::qhullstatic_r
+  #                    "-Wl,--no-whole-archive" Qhull::qhullcpp
+  # )
 endif()
-target_include_directories(
-  mc_rbdyn SYSTEM PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../3rd-party/qhull/src"
-)
+
+if(TARGET mc_rtc_3rd_party::ROS)
+  target_link_libraries(mc_rbdyn PRIVATE mc_rtc_3rd_party::ROS)
+endif()
+
 install_mc_rtc_lib(mc_rbdyn)
 
 set(mc_rtc_gui_SRC mc_rtc/gui/StateBuilder.cpp mc_rbdyn/gui/RobotConvex.cpp
@@ -534,8 +553,24 @@ set(mc_tasks_SRC
     mc_tasks/lipm_stabilizer/StabilizerTask_log_gui.cpp
     mc_tasks/lipm_stabilizer/ZMPCC.cpp
     mc_tasks/lipm_stabilizer/Contact.cpp
+<<<<<<< HEAD
     mc_tasks/CompliantEndEffectorTask.cpp
     mc_tasks/CompliantPostureTask.cpp
+=======
+    mc_tasks/CompliantPostureTask.cpp
+    mc_tasks/CompliantPositionTask.cpp
+    mc_tasks/CompliantOrientationTask.cpp
+    mc_tasks/CompliantEndEffectorTask.cpp
+    mc_tasks/TorqueTask.cpp
+    mc_tasks/ForceTask.cpp
+    mc_tasks/WrenchTask.cpp
+    mc_tasks/TorqueJointTask.cpp
+    mc_tasks/TorqueCartesianTask.cpp
+    mc_tasks/TorqueCartesianTask_test.cpp
+    mc_tasks/TorquePDCartesianTask.cpp
+    mc_tasks/TorquePDRelativeCartesianTask.cpp
+    mc_tasks/OperationalSpaceTask.cpp
+>>>>>>> bastien/hrp5p
 )
 
 set(mc_tasks_HDR
@@ -574,8 +609,26 @@ set(mc_tasks_HDR
     ../include/mc_tasks/lipm_stabilizer/StabilizerTask.h
     ../include/mc_tasks/lipm_stabilizer/Contact.h
     ../include/mc_tasks/lipm_stabilizer/ZMPCC.h
+<<<<<<< HEAD
     ../include/mc_tasks/CompliantEndEffectorTask.h
     ../include/mc_tasks/CompliantPostureTask.h
+=======
+    ../include/mc_tasks/CompliantPostureTask.h
+    ../include/mc_tasks/CompliantPositionTask.h
+    ../include/mc_tasks/CompliantOrientationTask.h
+    ../include/mc_tasks/CompliantEndEffectorTask.h
+    ../include/mc_tasks/TorqueTask.h
+    ../include/mc_tasks/ForceTask.h
+    ../include/mc_tasks/WrenchTask.h
+    ../include/mc_tasks/CompliantEndEffectorTask.h
+    ../include/mc_tasks/CompliantPostureTask.h
+    ../include/mc_tasks/TorqueJointTask.h
+    ../include/mc_tasks/TorqueCartesianTask.h
+    ../include/mc_tasks/TorqueCartesianTask_test.h
+    ../include/mc_tasks/TorquePDCartesianTask.h
+    ../include/mc_tasks/TorquePDRelativeCartesianTask.h
+    ../include/mc_tasks/OperationalSpaceTask.h
+>>>>>>> bastien/hrp5p
 )
 
 add_library(mc_tasks SHARED ${mc_tasks_SRC} ${mc_tasks_HDR})

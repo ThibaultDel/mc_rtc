@@ -13,10 +13,13 @@
 #include <RBDyn/Jacobian.h>
 
 #include <SpaceVecAlg/EigenTypedef.h>
+<<<<<<< HEAD
 #include <SpaceVecAlg/ForceVec.h>
 #include <SpaceVecAlg/SpaceVecAlg>
 
 // #include <mc_rbdyn/VirtualforceSensor.h>
+=======
+>>>>>>> bastien/hrp5p
 
 namespace mc_tvm
 {

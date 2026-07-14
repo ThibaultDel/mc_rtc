@@ -5,18 +5,9 @@
 #include "utils.h"
 
 #include <mc_rbdyn/Robots.h>
-
-#include <boost/filesystem.hpp>
-namespace bfs = boost::filesystem;
+#include <mc_rtc/config.h>
 
 #include <boost/test/unit_test.hpp>
-
-#ifndef JVRC_DESCRIPTION_PATH
-#  error "JVRC_DESCRIPTION_PATH must be defined to build this RobotModule"
-#endif
-
-#define JVRC_VAL(x) #x
-#define JVRC_VAL_VAL(x) JVRC_VAL(x)
 
 static std::string JVRC1_DATA = fmt::format(R"(
 path: "{}"
@@ -77,14 +68,14 @@ frames:
   X_p_f:
     translation: [0.1, 0, 0]
 )",
-                                            JVRC_VAL_VAL(JVRC_DESCRIPTION_PATH));
+                                            mc_rtc::JVRC_DESCRIPTION_PATH);
 
 BOOST_AUTO_TEST_CASE(TestRobotModule)
 {
   auto config = makeConfigFile(JVRC1_DATA, ".yaml");
   configureRobotLoader();
   auto rm = mc_rbdyn::RobotLoader::get_robot_module("json", config);
-  bfs::remove(config);
+  fs::remove(config);
   auto robots = mc_rbdyn::loadRobot(*rm);
   const auto & robot = robots->robot();
 

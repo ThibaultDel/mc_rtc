@@ -6,12 +6,13 @@
 
 #include <mc_rtc/utils_api.h>
 
-#include <iostream>
+#include <mc_rtc/fmt_formatters.h>
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/fmt/ostr.h>
 #include <spdlog/logger.h>
 
+<<<<<<< HEAD
 // fmt 9.0.0 removed automated operator<< discovery we use fmt::streamed instead when needed through a macro
 #if FMT_VERSION >= 9 * 10000
 #  define MC_FMT_STREAMED(X) fmt::streamed(X)
@@ -25,6 +26,8 @@ struct fmt::formatter<T, std::enable_if_t<std::is_base_of_v<Eigen::DenseBase<T>,
 #  define MC_FMT_STREAMED(X) X
 #endif
 
+=======
+>>>>>>> bastien/hrp5p
 #define BOOST_STACKTRACE_LINK
 #include <boost/stacktrace.hpp>
 
@@ -49,50 +52,79 @@ MC_RTC_UTILS_DLLAPI void disable_notifications();
 
 } // namespace details
 
-template<typename ExceptionT = std::runtime_error, typename... Args>
-void error_and_throw [[noreturn]] (Args &&... args)
+template<typename ExceptionT = std::runtime_error, typename S, typename... Args>
+void error_and_throw [[noreturn]] (const S & format, Args &&... args)
 {
-  auto message = fmt::format(std::forward<Args>(args)...);
+  std::string message;
+  if constexpr(sizeof...(Args) == 0) { message = fmt::format("{}", format); }
+  else
+  {
+    message = fmt::format(fmt::runtime(format), std::forward<Args>(args)...);
+  }
   details::notify(message);
   details::cerr().critical(message);
   details::cerr().critical("=== Backtrace ===\n{}", MC_FMT_STREAMED(boost::stacktrace::stacktrace()));
   throw ExceptionT(message);
 }
 
-template<typename... Args>
-void critical(Args &&... args)
+template<typename S, typename... Args>
+void critical(const S & format, Args &&... args)
 {
-  details::cerr().critical(std::forward<Args>(args)...);
+  if constexpr(sizeof...(Args) == 0) { details::cerr().critical(format); }
+  else
+  {
+    details::cerr().critical(fmt::runtime(format), std::forward<Args>(args)...);
+  }
 }
 
-template<typename... Args>
-void error(Args &&... args)
+template<typename S, typename... Args>
+void error(const S & format, Args &&... args)
 {
-  details::cerr().error(std::forward<Args>(args)...);
+  if constexpr(sizeof...(Args) == 0) { details::cerr().error(format); }
+  else
+  {
+    details::cerr().error(fmt::runtime(format), std::forward<Args>(args)...);
+  }
 }
 
-template<typename... Args>
-void warning(Args &&... args)
+template<typename S, typename... Args>
+void warning(const S & format, Args &&... args)
 {
-  details::cerr().warn(std::forward<Args>(args)...);
+  if constexpr(sizeof...(Args) == 0) { details::cerr().warn(format); }
+  else
+  {
+    details::cerr().warn(fmt::runtime(format), std::forward<Args>(args)...);
+  }
 }
 
-template<typename... Args>
-void info(Args &&... args)
+template<typename S, typename... Args>
+void info(const S & format, Args &&... args)
 {
-  details::info().info(std::forward<Args>(args)...);
+  if constexpr(sizeof...(Args) == 0) { details::info().info(format); }
+  else
+  {
+    details::info().info(fmt::runtime(format), std::forward<Args>(args)...);
+  }
 }
 
-template<typename... Args>
-void success(Args &&... args)
+template<typename S, typename... Args>
+void success(const S & format, Args &&... args)
 {
-  details::success().info(std::forward<Args>(args)...);
+  if constexpr(sizeof...(Args) == 0) { details::success().info(format); }
+  else
+  {
+    details::success().info(fmt::runtime(format), std::forward<Args>(args)...);
+  }
 }
 
-template<typename... Args>
-void notify(Args &&... args)
+template<typename S, typename... Args>
+void notify(const S & format, Args &&... args)
 {
-  details::notify(fmt::format(std::forward<Args>(args)...));
+  if constexpr(sizeof...(Args) == 0) { details::notify(fmt::format("{}", format)); }
+  else
+  {
+    details::notify(fmt::format(fmt::runtime(format), std::forward<Args>(args)...));
+  }
 }
 
 } // namespace log

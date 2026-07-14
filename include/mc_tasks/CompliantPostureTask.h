@@ -33,6 +33,10 @@ protected:
 
   Eigen::VectorXd gamma_;
 
+<<<<<<< HEAD
+=======
+  const mc_rbdyn::Robot & robot_;
+>>>>>>> bastien/hrp5p
   mc_tvm::Robot & tvm_robot_;
 
   Eigen::VectorXd refAccel_;

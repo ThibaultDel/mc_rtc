@@ -56,6 +56,9 @@ enum class MC_SOLVER_DLLAPI FeedbackType
   None,
   /** Synonyn for None */
   OpenLoop = None,
+  /** Open-loop for all joints, but floating base is always
+   *  synchronized from realRobots (never integrated by the QP) */
+  OpenLoopWithRealFloatingBase,
   /** Use encoder values for actuated joints */
   Joints,
   /** Joints + encoder velocity obtained from numerical differentiation */
@@ -67,7 +70,9 @@ enum class MC_SOLVER_DLLAPI FeedbackType
   ClosedLoop = ObservedRobots,
   /** Run in closed loop w.r.t realRobots using the observation pipeline and integrate over the real state of the system
    */
-  ClosedLoopIntegrateReal
+  ClosedLoopIntegrateReal,
+  /** Skip the QP entirely */
+  SkipQP
 };
 
 MC_RTC_diagnostic_pop
@@ -296,6 +301,8 @@ public:
   /** Returns the controller owning this instance (if any) */
   inline mc_control::MCController * controller() noexcept { return controller_; }
 
+  void setNyquistFraction(double fraction) noexcept { nyquistFraction = fraction; }
+
 protected:
   Backend backend_;
   mc_rbdyn::RobotsPtr robots_p;
@@ -333,6 +340,8 @@ protected:
 
   /** This is called anytime a constraint is removed, the passed constraint is not always a dynamics constraint */
   virtual void removeDynamicsConstraint(mc_solver::ConstraintSet * maybe_dynamics) = 0;
+
+  double nyquistFraction = 0.95; // 95% of Nyquist
 };
 
 } // namespace mc_solver
@@ -344,7 +353,11 @@ template<>
 struct formatter<mc_solver::QPSolver::Backend> : public formatter<string_view>
 {
   template<typename FormatContext>
-  auto format(const mc_solver::QPSolver::Backend & backend, FormatContext & ctx) -> decltype(ctx.out())
+#if FMT_VERSION <= 9 * 10000
+  auto format(const mc_solver::QPSolver::Backend & backend, FormatContext & ctx)
+#else
+  auto format(const mc_solver::QPSolver::Backend & backend, FormatContext & ctx) const -> decltype(ctx.out())
+#endif
   {
     using Backend = mc_solver::QPSolver::Backend;
     switch(backend)

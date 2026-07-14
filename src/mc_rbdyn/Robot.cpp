@@ -18,15 +18,18 @@
 
 #include <RBDyn/CoM.h>
 #include <RBDyn/FA.h>
+#include <RBDyn/FD.h>
 #include <RBDyn/FK.h>
 #include <RBDyn/FV.h>
 #include <RBDyn/NumericalIntegration.h>
 
+#include <Eigen/src/Core/Matrix.h>
+#include <optional>
 #include <sch/S_Object/S_Cylinder.h>
 #include <sch/S_Object/S_Superellipsoid.h>
 
-#include <boost/filesystem.hpp>
-namespace bfs = boost::filesystem;
+#include <filesystem>
+namespace fs = std::filesystem;
 
 #include <fstream>
 #include <tuple>
@@ -412,8 +415,8 @@ Robot::Robot(NewRobotToken,
   {
     for(auto & fs : forceSensors_)
     {
-      bfs::path calib_file = bfs::path(module_.calib_dir) / std::string("calib_data." + fs.name());
-      if(!bfs::exists(calib_file))
+      fs::path calib_file = fs::path(module_.calib_dir) / std::string("calib_data." + fs.name());
+      if(!fs::exists(calib_file))
       {
         if(params.warn_on_missing_files_)
         {
@@ -434,7 +437,7 @@ Robot::Robot(NewRobotToken,
 
   if(loadFiles)
   {
-    if(bfs::exists(module_.rsdf_dir)) { loadRSDFFromDir(module_.rsdf_dir); }
+    if(fs::exists(module_.rsdf_dir)) { loadRSDFFromDir(module_.rsdf_dir); }
     else if(module_.rsdf_dir.size() && params.warn_on_missing_files_)
     {
       mc_rtc::log::error("RSDF directory ({}) specified by RobotModule for {} does not exist.", module_.rsdf_dir,
@@ -510,6 +513,9 @@ Robot::Robot(NewRobotToken,
   flexibility_ = module_.flexibility();
 
   zmp_ = Eigen::Vector3d::Zero();
+
+  externalTorques_ = Eigen::VectorXd::Zero(mb().nrDof());
+  externalTorquesEquivalentAcc_ = Eigen::VectorXd::Zero(mb().nrDof());
 }
 
 Robot::~Robot()
@@ -959,8 +965,8 @@ void Robot::addForceSensor(const mc_rbdyn::ForceSensor & fs)
   }
   data_->forceSensors.push_back(fs);
   data_->forceSensorsIndex[fs.name()] = data_->forceSensors.size() - 1;
-  auto bfs_it = data_->bodyForceSensors_.find(fs.parentBody());
-  if(bfs_it == data_->bodyForceSensors_.end())
+  auto fs_it = data_->bodyForceSensors_.find(fs.parentBody());
+  if(fs_it == data_->bodyForceSensors_.end())
   {
     data_->bodyForceSensors_[fs.parentBody()] = data_->forceSensors.size() - 1;
   }
@@ -1358,7 +1364,7 @@ void Robot::copyLoadedData(Robot & robot) const
 {
   for(const auto & s : surfaces_) { robot.surfaces_[s.first] = s.second->copy(); }
   robot.fixSurfaces();
-  robot.makeFrames(module().frames());
+  for(const auto & [frameName, frame] : frames_) { frame->copy(robot); }
   for(const auto & cH : convexes_)
   {
     robot.convexes_[cH.first] = {cH.second.first, S_ObjectPtr(cH.second.second->clone())};
@@ -1565,6 +1571,58 @@ mc_tvm::Convex & Robot::tvmConvex(const std::string & name) const
                                                                   frame(cvx.first), collisionTransform(name))}});
   }
   return *it->second;
+}
+
+void Robot::setExternalTorques(const Eigen::VectorXd & torques)
+{
+  externalTorques_.noalias() = torques;
+}
+
+const Eigen::VectorXd & Robot::externalTorques(void) const
+{
+  return externalTorques_;
+}
+
+void Robot::setExternalTorquesAcc(const Eigen::VectorXd & accelerations)
+{
+  externalTorquesEquivalentAcc_.noalias() = accelerations;
+}
+
+const Eigen::VectorXd & Robot::externalTorquesAcc(void) const
+{
+  return externalTorquesEquivalentAcc_;
+}
+
+void Robot::setCompensationTorques(const Eigen::VectorXd & torques)
+{
+  if(!externalTorqueCompensation_) { externalTorqueCompensation_.emplace(torques.size()); }
+  else if(externalTorqueCompensation_->size() == torques.size())
+  {
+    externalTorqueCompensation_->resize(torques.size());
+  }
+
+  externalTorqueCompensation_->noalias() = torques;
+}
+
+const std::optional<Eigen::VectorXd> & Robot::compensationTorques(void) const
+{
+  return externalTorqueCompensation_;
+}
+
+void Robot::setCompensationTorquesAcc(const Eigen::VectorXd & accelerations)
+{
+  if(!externalTorqueCompensation_) { compensationEquivalentAcc_.emplace(accelerations.size()); }
+  else if(externalTorqueCompensation_->size() == accelerations.size())
+  {
+
+    compensationEquivalentAcc_->resize(accelerations.size());
+  }
+  compensationEquivalentAcc_->noalias() = accelerations;
+}
+
+const std::optional<Eigen::VectorXd> & Robot::compensationTorquesAcc(void) const
+{
+  return compensationEquivalentAcc_;
 }
 
 } // namespace mc_rbdyn

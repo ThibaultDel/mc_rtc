@@ -45,9 +45,15 @@ public:
                        const std::array<double, 3> & damper,
                        double velocityPercent = 0.5);
 
+<<<<<<< HEAD
   /** Damped constraint constructor for closed loop second order dynamics TVM
    * Builds a damped joint limits constraint
    * See tasks::qp::DamperJointLimitsConstr documentation for detail
+=======
+  /** CBF constraint constructor
+   * Builds a CBF joint limits constraint, see Safe Execution of RL Policies via Acceleration-based CBF-QP Constraint
+   * Enforcement for Real-World Robotic Deployments, B.Muraccioli et al. (2026)
+>>>>>>> bastien/hrp5p
    * \param robots The robots including the robot affected by this constraint
    * \param robotIndex The index of the robot affected by this constraint
    * \param damperSecond Value of the damper {interaction distance, safety distance,

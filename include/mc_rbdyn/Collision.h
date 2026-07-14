@@ -53,6 +53,14 @@ struct MC_RBDYN_DLLAPI Collision
       r2Joints; /** Active/Inactive joints in the second robot, ignored if r1 == r2 */
   bool r1JointsInactive = false; /** When true the selected joints in r1ActiveJoints are considered inactive */
   bool r2JointsInactive = false; /** When true the selected joints in r2ActiveJoints are considered inactive */
+<<<<<<< HEAD
+=======
+
+  /**
+   * CBF parameters, see details in Safe Execution of RL Policies via Acceleration-based CBF-QP Constraint Enforcement
+   * for Real-World Robotic Deployments, B.Muraccioli et al. (2026)
+   */
+>>>>>>> bastien/hrp5p
   double overDamping; /** Over-damping */
   double lambda; /** Lambda */
   inline bool isNone() { return body1 == "NONE" && body2 == "NONE"; }

@@ -15,6 +15,12 @@
       "default": "${path}/urdf/${name}.urdf",
       "description": "Path to the URDF file, can be relative to \"path\""
     },
+    "rsdf_dir":
+    {
+      "type": "string",
+      "default": "${path}/",
+      "description": "Path to the rsdf surfaces, can be relative to \"path\""
+    },
     "canonicalParameters":
     {
       "type": "array",
@@ -24,12 +30,12 @@
     "mb":
     {
       "description": "If mb is provided, mbc, bounds, visuals and collisionTransforms are required. Otherwise, the URDF is loaded when the object is loaded, using the filteredLinks and fixed properties.",
-      "$ref": "/../../RBDyn/MultiBody.json"
+      "$ref": "../RBDyn/MultiBody.json"
     },
     "mbc":
     {
       "description": "Required if mb is provided.",
-      "$ref": "/../../RBDyn/MultiBodyConfig.json"
+      "$ref": "../RBDyn/MultiBodyConfig.json"
     },
     "bounds":
     {
@@ -80,7 +86,7 @@
       "type": "object",
       "patternProperties":
       {
-        "*": { "type": "array", "items": { "$ref" : "/../../RBDyn/Visual.json" } }
+        "*": { "type": "array", "items": { "$ref" : "../RBDyn/Visual.json" } }
       }
     },
     "collisionTransforms":
@@ -88,7 +94,7 @@
       "type": "object",
       "patternProperties":
       {
-        "*": { "type": "array", "items": { "$ref" : "/../../SpaceVecAlg/PTransformd.json" } }
+        "*": { "type": "array", "items": { "$ref" : "../SpaceVecAlg/PTransformd.json" } }
       }
     },
     "filteredLinks":
@@ -126,7 +132,7 @@
           "items":
           [
             { "type": "string" },
-            { "$ref": "/../../mc_rbdyn/S_ObjectPtr.json" }
+            { "$ref": "../mc_rbdyn/S_ObjectPtr.json" }
           ],
           "minItems": 2,
           "maxItems": 2
@@ -147,7 +153,7 @@
       "type": "array",
       "items":
       {
-        "$ref": "/../../mc_rbdyn/RobotModule.FrameDescription.json"
+        "$ref": "../mc_rbdyn/RobotModule.FrameDescription.json"
       }
     },
     "flexibilities":
@@ -155,7 +161,7 @@
       "type": "array",
       "items":
       {
-        "$ref": "/../../mc_rbdyn/Flexibility.json"
+        "$ref": "../mc_rbdyn/Flexibility.json"
       }
     },
     "forceSensors":
@@ -163,7 +169,7 @@
       "type": "array",
       "items":
       {
-        "$ref": "/../../mc_rbdyn/ForceSensor.json"
+        "$ref": "../mc_rbdyn/ForceSensor.json"
       }
     },
     "bodySensors":
@@ -171,19 +177,19 @@
       "type": "array",
       "items":
       {
-        "$ref": "/../../mc_rbdyn/BodySensor.json"
+        "$ref": "../mc_rbdyn/BodySensor.json"
       }
     },
     "springs":
     {
-      "$ref": "/../../mc_rbdyn/Springs.json"
+      "$ref": "../mc_rbdyn/Springs.json"
     },
     "minimalSelfCollisions":
     {
       "type": "array",
       "items":
       {
-        "$ref": "/../../mc_rbdyn/Collision.json"
+        "$ref": "../mc_rbdyn/Collision.json"
       }
     },
     "commonSelfCollisions":
@@ -191,7 +197,7 @@
       "type": "array",
       "items":
       {
-        "$ref": "/../../mc_rbdyn/Collision.json"
+        "$ref": "../mc_rbdyn/Collision.json"
       }
     },
     "grippers":
@@ -199,7 +205,7 @@
       "type": "array",
       "items":
       {
-        "$ref": "/../../mc_rbdyn/RobotModule.Gripper.json"
+        "$ref": "../mc_rbdyn/RobotModule.Gripper.json"
       }
     },
     "default_attitude":
@@ -224,10 +230,10 @@
     {
       "type": "array", "items": { "type": "string" }
     },
-    "gripperSafety": { "$ref": "/../../mc_rbdyn/RobotModule.Gripper.Safety.json" },
+    "gripperSafety": { "$ref": "../mc_rbdyn/RobotModule.Gripper.Safety.json" },
     "lipmStabilizer":
     {
-      "$ref": "/../../mc_rbdyn/StabilizerConfiguration.json",
+      "$ref": "../mc_rbdyn/StabilizerConfiguration.json",
       "description": "Default configuration for {% doxygen mc_tasks::lipm_stabilizer::StabilizerTask %}"
     },
     "compoundJoints":
@@ -236,7 +242,7 @@
       "type": "array",
       "items":
       {
-        "$ref": "/../../mc_rbdyn/CompoundJointConstraintDescription.json"
+        "$ref": "../mc_rbdyn/CompoundJointConstraintDescription.json"
       }
     }
   },

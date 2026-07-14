@@ -420,9 +420,21 @@ void CollisionsConstraint::__editCollision(mc_solver::QPSolver & solver, const m
         }
       }
       if(inactive) { return jointsToSelector<false>(robots.robot(rIndex), *joints); }
+<<<<<<< HEAD
       else { return jointsToSelector<true>(robots.robot(rIndex), *joints); }
     }
     else { return Eigen::VectorXd::Zero(0).eval(); }
+=======
+      else
+      {
+        return jointsToSelector<true>(robots.robot(rIndex), *joints);
+      }
+    }
+    else
+    {
+      return Eigen::VectorXd::Zero(0).eval();
+    }
+>>>>>>> bastien/hrp5p
   };
 
   auto r1Selector = computeJointsSelector(col.r1Joints, col.r1JointsInactive, r1Index);
@@ -746,6 +758,34 @@ bool CollisionsConstraint::hasCollision(const std::string & c1, const std::strin
 {
   auto it = std::find_if(cols.begin(), cols.end(), [&](const auto & c) { return c.body1 == c1 && c.body2 == c2; });
   return it != cols.end();
+}
+
+double CollisionsConstraint::getDistance(const std::string & b1Name, const std::string & b2Name) const
+{
+  std::string key = b1Name + b2Name;
+  auto it = collIdDict.find(key);
+  if(it == collIdDict.end()) { return std::numeric_limits<double>::infinity(); }
+
+  int collId = it->second.first;
+
+  auto & nonConstThis = const_cast<CollisionsConstraint &>(*this);
+
+  switch(backend_)
+  {
+    case QPSolver::Backend::Tasks:
+    {
+      auto collConstr = tasks_constraint(nonConstThis.constraint_);
+      return collConstr->getCollisionData(collId).distance;
+    }
+    case QPSolver::Backend::TVM:
+    {
+      auto collConstr = tvm_constraint(nonConstThis.constraint_);
+      auto & fn = collConstr->getData(collId)->function;
+      return fn->distance();
+    }
+    default:
+      mc_rtc::log::error_and_throw("[CollisionsConstraint] Not implemented for this backend");
+  }
 }
 
 } // namespace mc_solver

@@ -51,12 +51,14 @@ void BodySensorObserver::configure(const mc_control::MCController & ctl, const m
 
   config("updatePose", updatePose_);
   config("updateVel", updateVel_);
+  config("updateAcc", updateAcc_);
   if(ctl.realRobot(updateRobot_).mb().joint(0).type() == rbd::Joint::Type::Fixed)
   {
     mc_rtc::log::warning("[{}] Requested update of the base velocity for robot {} but this robot has a fixed base, "
                          "velocity update will be ignored",
                          name(), updateRobot_);
     updateVel_ = false;
+    updateAcc_ = false;
   }
 
   if(config.has("log"))
@@ -138,6 +140,7 @@ void BodySensorObserver::update(mc_control::MCController & ctl)
   auto & realRobot = ctl.realRobots().robot(updateRobot_);
   if(updatePose_) { realRobot.posW(posW_); }
   if(updateVel_) { realRobot.velW(velW_); }
+  if(updateAcc_) { realRobot.accW(accW_); }
 }
 
 void BodySensorObserver::addToLogger(const mc_control::MCController &,

@@ -12,4 +12,9 @@ compile_commands.json
 .vscode/
 utils/build_and_install_user_config.sh
 .cache/
+<<<<<<< HEAD
 .idea/
+=======
+.direnv/
+result
+>>>>>>> bastien/hrp5p
