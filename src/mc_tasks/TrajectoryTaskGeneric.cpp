@@ -13,6 +13,8 @@
 
 #include <cmath>
 
+#include <tvm/task_dynamics/None.h>
+
 namespace mc_tasks
 {
 
@@ -120,7 +122,12 @@ void TrajectoryTaskGeneric::addToSolver(mc_solver::QPSolver & solver)
                                                       tvm::requirements::Weight(weight_),
                                                       tvm::requirements::AnisotropicWeight(trajectory->dimWeight_)};
           tvm::FunctionPtr error_ptr(&error, [](tvm::function::abstract::Function *) {});
-          if(error.variables()[0]->derivativeNumber() == 0)
+          if(isNoneTaskDynamics_)
+          {
+            trajectory->dynamicIsPD_ = false;
+            trajectory->task_ = tvm_solver(solver).problem().add(error_ptr == 0., tvm::task_dynamics::None(), reqs);
+          }
+          else if(error.variables()[0]->derivativeNumber() == 0)
           {
             trajectory->dynamicIsPD_ = true;
             trajectory->task_ =

@@ -313,6 +313,7 @@ protected:
   Eigen::VectorXd refVel_;
   Eigen::VectorXd refAccel_;
   bool inSolver_ = false;
+  bool isNoneTaskDynamics_ = false;
   /** Pointer to the trajectory dynamic
    *
    * In Tasks backend:

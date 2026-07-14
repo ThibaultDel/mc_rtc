@@ -18,17 +18,10 @@
 #include <string>
 #include <vector>
 
-#ifdef MC_RTC_ROS_IS_ROS2
 namespace rclcpp
 {
 class Node;
 }
-#else
-namespace ros
-{
-class NodeHandle;
-}
-#endif
 
 namespace mc_rbdyn
 {
@@ -42,14 +35,9 @@ struct MCGlobalController;
 
 namespace mc_rtc
 {
-
 struct ROSBridgeImpl;
 
-#ifdef MC_RTC_ROS_IS_ROS2
 using NodeHandlePtr = std::shared_ptr<rclcpp::Node>;
-#else
-using NodeHandlePtr = std::shared_ptr<ros::NodeHandle>;
-#endif
 
 /*! \brief Allows to access ROS functionalities within mc_rtc without explicit ROS dependencies */
 struct MC_RTC_ROS_DLLAPI ROSBridge
@@ -69,7 +57,16 @@ struct MC_RTC_ROS_DLLAPI ROSBridge
    */
   static void set_publisher_timestep(double timestep);
 
-  /** Update the robot publisher state
+  /** Gets publisher timestep
+   *
+   * \return Update timestep in ms
+   *
+   */
+  static double get_publisher_timestep();
+
+  /** Initialize a robot publisher
+   *
+   * \note This should only be used on robots owned by the controller. Use RobotPublisher for external robots
    *
    * \param publisher Name of the publisher
    *
@@ -87,6 +84,8 @@ struct MC_RTC_ROS_DLLAPI ROSBridge
 
   /** Update the robot publisher state
    *
+   * \note This should only be used on robots owned by the controller. Use RobotPublisher for external robots
+   *
    * \param publisher Name of the publisher
    *
    * \param dt Controller timestep
@@ -102,10 +101,18 @@ struct MC_RTC_ROS_DLLAPI ROSBridge
    */
   static void stop_robot_publisher(const std::string & publisher);
 
-  /** Remove the publisher of every removed robot
+  /** Return number of robot publisher
    *
-   * \param robots Controller's robots
+   * @return size_t
    */
+  static size_t nb_robot_publisher();
+
+  /** Check if publisher with the given name exists
+   *
+   * \param topic topic name
+   */
+  static bool has_publisher(const std::string & topic);
+
   static void remove_extra_robot_publishers(const mc_rbdyn::Robots & robots);
 
   /*! \brief Stop ROS */

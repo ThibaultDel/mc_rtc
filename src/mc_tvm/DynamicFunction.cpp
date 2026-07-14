@@ -10,8 +10,9 @@
 namespace mc_tvm
 {
 
-DynamicFunction::DynamicFunction(const mc_rbdyn::Robot & robot)
-: tvm::function::abstract::LinearFunction(robot.mb().nrDof()), robot_(robot)
+DynamicFunction::DynamicFunction(const mc_rbdyn::Robot & robot, bool compensateExternalForces)
+: tvm::function::abstract::LinearFunction(robot.mb().nrDof()), robot_(robot),
+  compensateExternalForces_(compensateExternalForces), contactTorque_(robot.mb().nrDof())
 {
   registerUpdates(Update::B, &DynamicFunction::updateb);
   registerUpdates(Update::Jacobian, &DynamicFunction::updateJacobian);
@@ -20,6 +21,10 @@ DynamicFunction::DynamicFunction(const mc_rbdyn::Robot & robot)
   auto & tvm_robot = robot.tvmRobot();
   addInputDependency<DynamicFunction>(Update::Jacobian, tvm_robot, Robot::Output::H);
   addInputDependency<DynamicFunction>(Update::B, tvm_robot, Robot::Output::C);
+  if(compensateExternalForces_)
+  {
+    addInputDependency<DynamicFunction>(Update::B, tvm_robot, Robot::Output::ExternalForces);
+  }
   addVariable(tvm::dot(tvm_robot.q(), 2), true);
   addVariable(tvm_robot.tau(), true);
   jacobian_[tvm_robot.tau().get()] = -Eigen::MatrixXd::Identity(robot_.mb().nrDof(), robot_.mb().nrDof());
@@ -49,6 +54,7 @@ void DynamicFunction::ForceContact::updateJacobians(DynamicFunction & parent)
     full_jac_.setZero();
     jac_.addFullJacobian(blocks_, force_jac_, full_jac_);
     parent.jacobian_[force.get()].noalias() = -dir_ * full_jac_.block(3, 0, 3, robot.mb().nrDof()).transpose();
+    parent.contactTorque_.noalias() -= parent.jacobian_[force.get()] * force->value();
   }
 }
 
@@ -103,18 +109,49 @@ sva::ForceVecd DynamicFunction::contactForce(const mc_rbdyn::RobotFrame & frame)
 void DynamicFunction::updateb()
 {
   b_ = robot_.tvmRobot().C();
+  if(compensateExternalForces_)
+  {
+    if(robot_.tvmRobot().tauCompensation()) { b_ -= robot_.tvmRobot().tauCompensation().value(); }
+    else
+    {
+      b_ -= robot_.tvmRobot().tauExternal();
+    }
+  }
 }
 
 void DynamicFunction::updateJacobian()
 {
   const auto & robot = robot_.tvmRobot();
   splitJacobian(robot.H(), robot.alphaD());
+  contactTorque_.setZero();
   for(auto & c : contacts_) { c.updateJacobians(*this); }
 }
 
 auto DynamicFunction::findContact(const mc_rbdyn::RobotFrame & frame) const -> std::vector<ForceContact>::const_iterator
 {
   return std::find_if(contacts_.begin(), contacts_.end(), [&](const auto & c) { return c.frame_.get() == &frame; });
+}
+
+// New method in DynamicFunction or a helper
+Eigen::MatrixXd DynamicFunction::stackedContactJacobian()
+{
+  int nDof = robot_.mb().nrDof();
+  int nRows = 0;
+  for(const auto & c : contacts_) nRows += 3 * c.forces_.numberOfVariables();
+
+  Eigen::MatrixXd Jc(nRows, nDof);
+  int row = 0;
+  for(const auto & c : contacts_)
+  {
+    for(int i = 0; i < c.forces_.numberOfVariables(); ++i)
+    {
+      // jacobian_[force] is already -dir * J_translated^T
+      // recover the 3xnDof block
+      Jc.block(row, 0, 3, nDof) = -jacobian_[c.forces_[i].get()].transpose();
+      row += 3;
+    }
+  }
+  return Jc; // shape: (3*n_contact_points, nDof)
 }
 
 } // namespace mc_tvm
