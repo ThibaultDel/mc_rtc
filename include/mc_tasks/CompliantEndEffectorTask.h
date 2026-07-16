@@ -53,20 +53,24 @@ public:
   bool isCompliant(void);
   Eigen::Vector6d getComplianceVector(void);
 
+  void load(mc_solver::QPSolver & solver, const mc_rtc::Configuration & config) override;
+
 protected:
-  void addToSolver(mc_solver::QPSolver & solver);
+  void addToSolver(mc_solver::QPSolver & solver) override;
 
-  void update(mc_solver::QPSolver & solver);
+  void update(mc_solver::QPSolver & solver) override;
 
-  void addToGUI(mc_rtc::gui::StateBuilder & gui);
+  void addToGUI(mc_rtc::gui::StateBuilder & gui) override;
 
-  Eigen::MatrixXd compliant_matrix_;
+  Eigen::Matrix6d compliant_matrix_;
 
-  mc_tvm::Robot * tvm_robot_;
+  const mc_rbdyn::Robot & robot_;
+  mc_tvm::Robot & tvm_robot_;
 
   unsigned int rIdx_;
 
   std::string bodyName_;
+  const mc_rbdyn::RobotFrame & frame_;
 
   rbd::Jacobian * jac_;
 

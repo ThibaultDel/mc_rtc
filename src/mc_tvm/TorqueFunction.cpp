@@ -7,49 +7,49 @@
 
 #include <mc_rbdyn/Robot.h>
 #include <mc_tvm/Robot.h>
+#include <RBDyn/MultiBodyConfig.h>
+#include <SpaceVecAlg/EigenTypedef.h>
 
 namespace mc_tvm
 {
 
-TorqueFunction::TorqueFunction(const mc_rbdyn::Robot & robot, bool compensateExternalForces)
+TorqueFunction::TorqueFunction(const mc_rbdyn::Robot & robot, bool compensateExternalForces, bool compensateGravity)
 : tvm::function::abstract::LinearFunction(robot.mb().nrDof()), robot_(robot),
-  compensateExternalForces_(compensateExternalForces), j0_(robot_.mb().joint(0).type() == rbd::Joint::Free ? 1 : 0)
+  compensateExternalForces_(compensateExternalForces), compensateGravity_(compensateGravity),
+  j0_(robot_.mb().joint(0).type() == rbd::Joint::Free ? 1 : 0)
 {
   registerUpdates(Update::B, &TorqueFunction::updateb);
-  registerUpdates(Update::Jacobian, &TorqueFunction::updateJacobian);
   addOutputDependency<TorqueFunction>(Output::B, Update::B);
-  addOutputDependency<TorqueFunction>(Output::Jacobian, Update::Jacobian);
   auto & tvm_robot = robot.tvmRobot();
-  addInputDependency<TorqueFunction>(Update::Jacobian, tvm_robot, Robot::Output::H);
+  addInputDependency<TorqueFunction>(Update::B, tvm_robot, Robot::Output::tau);
   addInputDependency<TorqueFunction>(Update::B, tvm_robot, Robot::Output::C);
   addInputDependency<TorqueFunction>(Update::B, tvm_robot, Robot::Output::ExternalForces);
   addVariable(tvm::dot(tvm_robot.q(), 2), true);
-  velocity_.setZero();
-
+  addVariable(tvm_robot.tau(), true); // x
+  jacobian_[tvm_robot.tau().get()] = Eigen::MatrixXd::Identity(robot_.mb().nrDof(), robot_.mb().nrDof());
+  jacobian_[tvm_robot.tau().get()].properties(tvm::internal::MatrixProperties::IDENTITY); // A
   reset();
 }
 
 void TorqueFunction::updateb() // Ax + b = 0
 {
-  b_ = robot_.tvmRobot().C() - torque_;
-  if(!compensateExternalForces_)
-  {
-    Eigen::VectorXd extForces = robot_.tvmRobot().tauExternal();
-    b_ -= extForces;
-  }
-}
+  b_ = -torque_;
 
-void TorqueFunction::updateJacobian()
-{
-  const auto & robot = robot_.tvmRobot();
-  splitJacobian(robot.H(), robot.alphaD());
+  torque_extForces_ = robot_.tvmRobot().tauExternal();
+  torque_gravity_ = robot_.tvmRobot().C();
+  if(compensateExternalForces_) { b_ += torque_extForces_; }
+  if(compensateGravity_) { b_ -= torque_gravity_; }
+
+  // // If robot is floating base, the first 6 DoFs are not actuated, so we set the corresponding entries in b_ to 0
+  // if(j0_ == 1) { b_.head(6).setZero(); }
 }
 
 void TorqueFunction::reset()
 {
-  torque_ = robot_.tvmRobot().tau()->value();
   torque_mc_rtc_ = robot_.mbc().jointTorque;
-  mcrtcTorqueToEigen();
+  torque_ = rbd::sDofToVector(robot_.mb(), torque_mc_rtc_);
+  torque_extForces_ = robot_.tvmRobot().tauExternal();
+  torque_gravity_ = robot_.tvmRobot().C();
 }
 
 void TorqueFunction::torque(const std::string & j, const std::vector<double> & tau)
@@ -67,12 +67,11 @@ void TorqueFunction::torque(const std::string & j, const std::vector<double> & t
     return;
   }
   torque_mc_rtc_[static_cast<size_t>(jIndex)] = tau;
-  mcrtcTorqueToEigen();
+  torque_ = rbd::sDofToVector(robot_.mb(), torque_mc_rtc_);
 }
 
-namespace
-{
-bool isValidTorque(const std::vector<std::vector<double>> & ref, const std::vector<std::vector<double>> & in)
+bool TorqueFunction::isValidTorque(const std::vector<std::vector<double>> & ref,
+                                   const std::vector<std::vector<double>> & in)
 {
   if(ref.size() != in.size()) { return false; }
   for(size_t i = 0; i < ref.size(); ++i)
@@ -81,7 +80,6 @@ bool isValidTorque(const std::vector<std::vector<double>> & ref, const std::vect
   }
   return true;
 }
-} // namespace
 
 void TorqueFunction::torque(const std::vector<std::vector<double>> & tau)
 {
@@ -91,45 +89,7 @@ void TorqueFunction::torque(const std::vector<std::vector<double>> & tau)
     return;
   }
   torque_mc_rtc_ = tau;
-  mcrtcTorqueToEigen();
-}
-
-void TorqueFunction::eigenToMCrtcTorque()
-{
-  int pos = 0;
-  if(robot_.mb().nrJoints() > 0 && robot_.mb().joint(0).type() == rbd::Joint::Free)
-  {
-    pos = 6; // Skip the floating base joints
-  }
-  for(int jI = j0_; jI < robot_.mb().nrJoints(); ++jI)
-  {
-    auto jIdx = static_cast<size_t>(jI);
-    const auto & j = robot_.mb().joint(jI);
-    if(j.dof() == 1) // prismatic or revolute
-    {
-      torque_mc_rtc_[jIdx][0] = torque_[pos];
-      pos++;
-    }
-  }
-}
-
-void TorqueFunction::mcrtcTorqueToEigen()
-{
-  int pos = 0;
-  if(robot_.mb().nrJoints() > 0 && robot_.mb().joint(0).type() == rbd::Joint::Free)
-  {
-    pos = 6; // Skip the floating base joints
-  }
-  for(int jI = j0_; jI < robot_.mb().nrJoints(); ++jI)
-  {
-    auto jIdx = static_cast<size_t>(jI);
-    const auto & j = robot_.mb().joint(jI);
-    if(j.dof() == 1) // prismatic or revolute
-    {
-      torque_[pos] = torque_mc_rtc_[jIdx][0];
-      pos++;
-    }
-  }
+  torque_ = rbd::sDofToVector(robot_.mb(), torque_mc_rtc_);
 }
 
 } // namespace mc_tvm

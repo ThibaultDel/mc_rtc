@@ -75,6 +75,16 @@ public:
    */
   void addCollision(QPSolver & solver, const mc_rbdyn::Collision & col);
 
+  /** Set the damping values of a set of collisions
+   *
+   * CBF parameters, see details in Safe Execution of RL Policies via Acceleration-based CBF-QP Constraint Enforcement
+   * for Real-World Robotic Deployments, B.Muraccioli et al. (2026)
+   *
+   * \param solver The solver into which this constraint was added
+   * \param dampers List of parameters: {overDamping, lambda}
+   */
+  void setCollisionsDampers(QPSolver & solver, const std::vector<double> & dampers);
+
   /** Add a set of collisions
    *
    * \see addCollision for details on wildcard collision specification
@@ -84,9 +94,17 @@ public:
    */
   void addCollisions(QPSolver & solver, const std::vector<mc_rbdyn::Collision> & cols);
 
+  /** Edit a set of collisions
+   *
+   * The collision to edit is identified by the body names, the new parameters
+   * specified in col are applied to the collision, if it exists. If no such
+   * collision exists, this function does nothing.
+   *
+   * \param solver The solver into which this constraint was added \param col The
+   * collision with updated parameters, the collision to update is identified
+   * by the body names specified in col
+   */
   void editCollisions(QPSolver & solver, const std::vector<mc_rbdyn::Collision> & cols);
-
-  void setCollisionsDampers(QPSolver & solver, const std::vector<double> & dampers);
 
   /** Returns true if the given collision is in this constraint */
   bool hasCollision(const std::string & c1, const std::string & c2) const noexcept;
@@ -96,6 +114,11 @@ public:
 
   /** Get the automated monitoring setting */
   inline bool automaticMonitor() const noexcept { return autoMonitor_; }
+
+  /** Add collision logging
+   * \param a True to enable collision logging, false to disable
+   */
+  inline void logCollisions(bool a) noexcept { logCollisions_ = a; }
 
   /** Set the automated monitoring setting
    *
@@ -112,6 +135,13 @@ public:
   void update(QPSolver & solver) override;
 
   void removeFromSolverImpl(QPSolver & solver) override;
+
+  /** Get the current distance for a specific collision pair.
+   * \param b1Name Name of the first convex
+   * \param b2Name Name of the second convex
+   * \return The distance in meters. Returns infinity if the collision is not found.
+   */
+  double getDistance(const std::string & b1Name, const std::string & b2Name) const;
 
 public:
   /** Holds the constraint implementation
@@ -139,6 +169,7 @@ private:
   std::pair<int, mc_rbdyn::Collision> __popCollId(const std::string & name1, const std::string & name2);
   /** Actually adds the collision to the constraint, handles id creation and wildcard support */
   void __addCollision(mc_solver::QPSolver & solver, const mc_rbdyn::Collision & col);
+  /** Actually removes the collision from the constraint, handles id removal */
   void __editCollision(mc_solver::QPSolver & solver, const mc_rbdyn::Collision & col);
 
   /* Internal management for collision display */

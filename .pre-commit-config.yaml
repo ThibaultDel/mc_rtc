@@ -5,6 +5,10 @@ exclude: |
       3rd-party/.*|
       doc/_i18n/en/tutorials/introduction/multi-robot-controller/p3.py|
       doc/_i18n/jp/tutorials/introduction/multi-robot-controller/p3.py|
+      doc/_i18n/en/tutorials/introduction/dual-arm-controller/p2.py|
+      doc/_i18n/jp/tutorials/introduction/dual-arm-controller/p2.py|
+      doc/_i18n/en/tutorials/introduction/dual-arm-controller/p3.py|
+      doc/_i18n/jp/tutorials/introduction/dual-arm-controller/p3.py|
       .*.svg
   )$
 repos:
@@ -13,7 +17,7 @@ repos:
   - id: check-useless-excludes
   - id: check-hooks-apply
 - repo: https://github.com/pre-commit/mirrors-clang-format
-  rev: v21.1.2
+  rev: v21.1.8
   hooks:
   - id: clang-format
     'types_or': [c++, c]
@@ -54,7 +58,7 @@ repos:
   - id: mixed-line-ending
   - id: trailing-whitespace
 - repo: https://github.com/psf/black-pre-commit-mirror
-  rev: 25.9.0
+  rev: 25.12.0
   hooks:
   - id: black
     exclude: |
@@ -82,3 +86,7 @@ repos:
   rev: v0.6.13
   hooks:
   - id: cmake-format
+# - repo: https://github.com/JohnnyMorganz/StyLua
+#   rev: v2.3.0
+#   hooks:
+#     - id: stylua # or stylua-system / stylua-github

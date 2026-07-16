@@ -38,7 +38,7 @@ public:
   SET_UPDATES(DynamicFunction, Jacobian, B)
 
   /** Construct the equation of motion for a given robot */
-  DynamicFunction(const mc_rbdyn::Robot & robot, bool compensateExternalForces = false);
+  DynamicFunction(const mc_rbdyn::Robot & robot, bool compensateExternalForces = true);
 
   /** Add a contact to the function
    *
@@ -71,11 +71,21 @@ public:
    */
   sva::ForceVecd contactForce(const mc_rbdyn::RobotFrame & f) const;
 
+  /** Returns the torque part of the contact forces */
+  const Eigen::VectorXd & contactTorque() const { return contactTorque_; }
+
+  /** Returns the stacked Jacobian of all contact points
+   *
+   * \returns A matrix of size (3 * n_contact_points, nDof)
+   */
+  Eigen::MatrixXd stackedContactJacobian();
+
 protected:
   void updateb();
 
   const mc_rbdyn::Robot & robot_;
   const bool compensateExternalForces_;
+  Eigen::VectorXd contactTorque_;
 
   /** Holds data for the force part of the motion equation */
   struct ForceContact

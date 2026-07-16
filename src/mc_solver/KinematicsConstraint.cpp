@@ -44,7 +44,7 @@ TVMKinematicsConstraint::TVMKinematicsConstraint(const mc_rbdyn::Robot & robot,
 
 void TVMKinematicsConstraint::addToSolver(mc_solver::TVMQPSolver & solver)
 {
-  bool closeLoopSecondOrder = damperSecond_[3] >= 1.0; // m overDamping >= 1.0
+  bool useCBF = damperSecond_[3] > 1 - 1e-9; // m overDamping >= 1.0
 
   auto & tvm_robot = robot_.tvmRobot();
 
@@ -54,10 +54,11 @@ void TVMKinematicsConstraint::addToSolver(mc_solver::TVMQPSolver & solver)
   auto ql = tvm_robot.limits().ql.segment(startParam, nParams);
   auto qu = tvm_robot.limits().qu.segment(startParam, nParams);
 
-  Eigen::VectorXd di;
-  Eigen::VectorXd ds;
-
-  if(closeLoopSecondOrder)
+  double diGain = useCBF ? damperSecond_[0] : damper_[0];
+  double dsGain = useCBF ? damperSecond_[1] : damper_[1];
+  Eigen::VectorXd di = diGain * (qu - ql);
+  Eigen::VectorXd ds = dsGain * (qu - ql);
+  for(int i = 0; i < nParams; ++i)
   {
     mc_rtc::log::info(
         "[KinematicsConstraint] Second order dynamics with damping: di%= {}, ds%= {}, xsioff= {}, m= {}, lambda= {}",
@@ -83,36 +84,48 @@ void TVMKinematicsConstraint::addToSolver(mc_solver::TVMQPSolver & solver)
         {tvm::requirements::PriorityLevel(0)});
     constraints_.push_back(jl);
   }
-  else
-  {
-    di = damper_[0] * (qu - ql);
-    ds = damper_[1] * (qu - ql);
-    for(int i = 0; i < nParams; ++i)
-    {
-      if(std::isinf(di(i)))
-      {
-        di(i) = 0.01;
-        ds(i) = 0.005;
-      }
-    }
-    auto jl = solver.problem().add(
-        ql <= tvm_robot.qJoints() <= qu,
-        tvm::task_dynamics::VelocityDamper(solver.dt(), {di, ds, Eigen::VectorXd::Constant(nParams, 1, 0),
-                                                         Eigen::VectorXd::Constant(nParams, 1, damper_[2])}),
-        {tvm::requirements::PriorityLevel(0)});
-    constraints_.push_back(jl);
-  }
 
   /** Velocity limits */
   int startDof = tvm_robot.qFloatingBase()->space().tSize();
   auto nDof = tvm_robot.qJoints()->space().tSize();
   auto vl = tvm_robot.limits().vl.segment(startDof, nDof) * velocityPercent_;
   auto vu = tvm_robot.limits().vu.segment(startDof, nDof) * velocityPercent_;
-  auto vL = solver.problem().add(
-      vl <= tvm::dot(tvm_robot.qJoints()) <= vu,
-      tvm::task_dynamics::Proportional((closeLoopSecondOrder) ? damperSecond_[4] : 1 / solver.dt()),
-      {tvm::requirements::PriorityLevel(0)});
-  constraints_.push_back(vL);
+
+  if(useCBF)
+  {
+    /** Add Joint limits to the QP problem */
+    auto jl = solver.problem().add(
+        ql <= tvm_robot.qJoints() <= qu,
+        tvm::task_dynamics::VelocityDamper(solver.dt(), {di, ds, Eigen::VectorXd::Constant(nParams, 1, 0),
+                                                         Eigen::VectorXd::Constant(nParams, 1, damperSecond_[2]),
+                                                         Eigen::VectorXd::Constant(nParams, 1, damperSecond_[3]),
+                                                         Eigen::VectorXd::Constant(nParams, 1, damperSecond_[4])}),
+        {tvm::requirements::PriorityLevel(0)});
+    constraints_.push_back(jl);
+
+    /** Add Velocity limits to the QP problem */
+    auto vL =
+        solver.problem().add(vl <= tvm::dot(tvm_robot.qJoints()) <= vu,
+                             tvm::task_dynamics::Proportional(damperSecond_[4]), {tvm::requirements::PriorityLevel(0)});
+    constraints_.push_back(vL);
+  }
+  else
+  {
+    /** Add Joint limits to the QP problem */
+    auto jl = solver.problem().add(
+        ql <= tvm_robot.qJoints() <= qu,
+        tvm::task_dynamics::VelocityDamper(solver.dt(), {di, ds, Eigen::VectorXd::Constant(nParams, 1, 0),
+                                                         Eigen::VectorXd::Constant(nParams, 1, damper_[2])}),
+        {tvm::requirements::PriorityLevel(0)});
+    constraints_.push_back(jl);
+
+    /** Add Velocity limits to the QP problem */
+    auto vL =
+        solver.problem().add(vl <= tvm::dot(tvm_robot.qJoints()) <= vu,
+                             tvm::task_dynamics::Proportional(1 / solver.dt()), {tvm::requirements::PriorityLevel(0)});
+    constraints_.push_back(vL);
+  }
+
   /** Acceleration limits */
   auto al = tvm_robot.limits().al.segment(startDof, nDof);
   auto au = tvm_robot.limits().au.segment(startDof, nDof);
@@ -152,6 +165,13 @@ void TVMKinematicsConstraint::removeFromSolver(mc_solver::TVMQPSolver & solver)
   mimics_constraints_.clear();
 }
 
+static mc_rtc::void_ptr initialize_tvm(const mc_rbdyn::Robot & robot,
+                                       const std::array<double, 5> & damperSecond,
+                                       double vp)
+{
+  return mc_rtc::make_void_ptr<TVMKinematicsConstraint>(robot, damperSecond, vp);
+}
+
 static mc_rtc::void_ptr initialize_tvm(const mc_rbdyn::Robot & robot, const std::array<double, 3> & damper, double vp)
 {
   return mc_rtc::make_void_ptr<TVMKinematicsConstraint>(robot, damper, vp);
@@ -185,8 +205,31 @@ static mc_rtc::void_ptr initialize(QPSolver::Backend backend,
   }
 }
 
+static mc_rtc::void_ptr initialize(QPSolver::Backend backend,
+                                   const mc_rbdyn::Robots & robots,
+                                   unsigned int robotIndex,
+                                   const std::array<double, 5> & damperSecond,
+                                   double velocityPercent)
+{
+  switch(backend)
+  {
+    case QPSolver::Backend::TVM:
+      return initialize_tvm(robots.robot(robotIndex), damperSecond, velocityPercent);
+    default:
+      mc_rtc::log::error_and_throw("[KinematicsConstraint] Not implemented for solver backend: {}", backend);
+  }
+}
+
 KinematicsConstraint::KinematicsConstraint(const mc_rbdyn::Robots & robots, unsigned int robotIndex, double timeStep)
 : constraint_(initialize(backend_, robots, robotIndex, timeStep))
+{
+}
+
+KinematicsConstraint::KinematicsConstraint(const mc_rbdyn::Robots & robots,
+                                           unsigned int robotIndex,
+                                           const std::array<double, 5> & damperSecond,
+                                           double velocityPercent)
+: constraint_(initialize(backend_, robots, robotIndex, damperSecond, velocityPercent))
 {
 }
 

@@ -161,7 +161,7 @@ Robot::Robot(NewRobotToken, const mc_rbdyn::Robot & robot)
   /** Signal setup */
   registerUpdates(Update::FK, &Robot::updateFK, Update::FV, &Robot::updateFV, Update::FA, &Robot::updateFA,
                   Update::NormalAcceleration, &Robot::updateNormalAcceleration, Update::H, &Robot::updateH, Update::C,
-                  &Robot::updateC, Update::ExternalForces, &Robot::updateEF);
+                  &Robot::updateC, Update::ExternalForces, &Robot::updateExternalForces);
   /** Output dependencies setup */
   addOutputDependency(Output::FK, Update::FK);
   addOutputDependency(Output::FV, Update::FV);
@@ -243,13 +243,17 @@ tvm::VariablePtr Robot::qJoint(size_t jIdx)
                          tvm::Space(offsetDof, offsetParam, offsetDof));
 }
 
-void Robot::updateEF()
+void Robot::updateExternalForces()
 {
-  if(robot_.hasDevice<mc_rbdyn::VirtualTorqueSensor>("ExtTorquesVirtSensor"))
+  tau_ext_ = robot_.externalTorques();
+  tau_comp_ = robot_.compensationTorques();
+  auto H_inv = H().ldlt();
+  ddq_ext_ = H_inv.solve(tau_ext_);
+  if(tau_comp_)
   {
-    tau_ext_ = robot_.device<mc_rbdyn::VirtualTorqueSensor>("ExtTorquesVirtSensor").torques();
+    if(ddq_comp_->size() != tau_comp_->size()) { ddq_comp_->resize(tau_comp_->size()); }
+    ddq_comp_ = H_inv.solve(tau_comp_.value());
   }
-  ddq_ext_ = H().ldlt().solve(tau_ext_);
 }
 
 } // namespace mc_tvm
