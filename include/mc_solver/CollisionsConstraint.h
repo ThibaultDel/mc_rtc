@@ -112,9 +112,6 @@ public:
   /** Remove all collisions from the constraint */
   void reset();
 
-  /** Get the automated monitoring setting */
-  inline bool automaticMonitor() const noexcept { return autoMonitor_; }
-
   /** Add collision logging
    * \param a True to enable collision logging, false to disable
    */
@@ -127,8 +124,6 @@ public:
    * If false, monitors are managed by the user
    */
   inline void automaticMonitor(bool a) noexcept { autoMonitor_ = a; }
-
-  inline void logCollisions(bool a) noexcept { logCollisions_ = a; }
 
   void addToSolverImpl(QPSolver & solver) override;
 

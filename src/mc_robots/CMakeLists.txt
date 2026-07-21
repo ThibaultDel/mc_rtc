@@ -37,6 +37,7 @@ add_robot(env)
 add_robot(json)
 
 macro(append_aliases PATH VAR NAME)
+  message(${PATH})
   file(GLOB URDF_FILES ${PATH}/urdf/*.urdf)
   foreach(URDF ${URDF_FILES})
     get_filename_component(URDF_NAME "${URDF}" NAME_WE)
@@ -44,6 +45,8 @@ macro(append_aliases PATH VAR NAME)
   endforeach()
   string(REPLACE ";" "\n" ${VAR} "${${VAR}}")
 endmacro()
+
+
 
 macro(generate_aliases PATH ALIASES FILE_IN FILE_OUT)
   set(${ALIASES})
@@ -61,10 +64,20 @@ macro(generate_aliases PATH ALIASES FILE_IN FILE_OUT)
   )
 endmacro()
 
+message(WARNING "MC_INT_OBJ_DESCRIPTION_PATH='${MC_INT_OBJ_DESCRIPTION_PATH}'")
+message(WARNING "OBJECT_ALIASES='${OBJECT_ALIASES}'")
+message(WARNING "OBJECT_ALIASES count=$<LIST:LENGTH,${OBJECT_ALIASES}>")
+
 if(EXISTS "${MC_INT_OBJ_DESCRIPTION_PATH}")
   append_aliases("${MC_INT_OBJ_DESCRIPTION_PATH}" OBJECT_ALIASES object)
+
+  message(WARNING "OBJECT_ALIASES='${OBJECT_ALIASES}'")
+  message(WARNING "ENV_ALIASES='${ENV_ALIASES}'")
+  message(WARNING "OBJECT_ALIASES=[${OBJECT_ALIASES}]")
+  message(WARNING "ENV_ALIASES=[${ENV_ALIASES}]")
+
   generate_aliases(
-    "${MC_INT_OBJ_DESCRIPTION_PATH}" ${OBJECT_ALIASES} object_aliases.in.yml
+    "${MC_INT_OBJ_DESCRIPTION_PATH}" "${OBJECT_ALIASES}" object_aliases.in.yml
     object_aliases.yml
   )
   append_aliases("${MC_INT_OBJ_DESCRIPTION_PATH}" ENV_ALIASES env)
@@ -73,7 +86,7 @@ endif()
 if(EXISTS "${MC_ENV_DESCRIPTION_PATH}")
   append_aliases("${MC_ENV_DESCRIPTION_PATH}" ENV_ALIASES env)
   generate_aliases(
-    "${MC_ENV_DESCRIPTION_PATH}" ${ENV_ALIASES} env_aliases.in.yml env_aliases.yml
+    "${MC_ENV_DESCRIPTION_PATH}" "${ENV_ALIASES}" env_aliases.in.yml env_aliases.yml
   )
 endif()
 

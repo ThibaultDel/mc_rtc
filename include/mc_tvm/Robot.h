@@ -102,11 +102,6 @@ public:
   /** Access joint acceleration from external forces */
   inline Eigen::VectorXd & alphaDExternal() noexcept { return ddq_ext_; }
 
-  /** Access joint acceleration from external forces (const) */
-  inline const Eigen::VectorXd & alphaDExternal() const noexcept { return ddq_ext_; }
-  /** Access joint acceleration from external forces */
-  inline Eigen::VectorXd & alphaDExternal() noexcept { return ddq_ext_; }
-
   /** Access floating-base variable (const) */
   inline const tvm::VariablePtr & qFloatingBase() const noexcept { return q_fb_; }
   /** Access free-flyer variable */
@@ -144,11 +139,6 @@ public:
   inline const tvm::VariablePtr & tau() const noexcept { return tau_; }
   /** Access tau variable */
   inline tvm::VariablePtr & tau() { return tau_; }
-  /** Access tau external variable (const) */
-  inline const Eigen::VectorXd & tauExternal() const noexcept { return tau_ext_; }
-  /** Access tau external variable */
-  inline Eigen::VectorXd & tauExternal() { return tau_ext_; }
-
   /** Access tau external variable (const) */
   inline const Eigen::VectorXd & tauExternal() const noexcept { return tau_ext_; }
   /** Access tau external variable */
