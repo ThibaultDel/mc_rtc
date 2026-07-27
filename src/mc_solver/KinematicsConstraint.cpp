@@ -11,7 +11,7 @@
 
 #include <array>
 
-#include <mc_solver/TVMKinematicsConstraint.h>
+#include "TVMKinematicsConstraint.h"
 
 namespace mc_solver
 {

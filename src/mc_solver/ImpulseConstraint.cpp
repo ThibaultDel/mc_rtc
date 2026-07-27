@@ -9,7 +9,7 @@
 #include <Tasks/Bounds.h>
 #include <Tasks/QPConstr.h>
 
-#include <mc_solver/TVMImpulseConstraint.h>
+#include "TVMImpulseConstraint.h"
 
 namespace mc_solver
 {

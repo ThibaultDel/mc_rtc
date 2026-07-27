@@ -11,7 +11,7 @@
 
 #include <Tasks/Bounds.h>
 
-#include <mc_solver/TVMKinematicsConstraint.h>
+#include "TVMKinematicsConstraint.h"
 
 #include <mc_rtc/log/Logger.h>
 
