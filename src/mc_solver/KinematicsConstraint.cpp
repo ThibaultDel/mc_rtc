@@ -177,12 +177,6 @@ static mc_rtc::void_ptr initialize_tvm(const mc_rbdyn::Robot & robot, const std:
   return mc_rtc::make_void_ptr<TVMKinematicsConstraint>(robot, damper, vp);
 }
 
-static mc_rtc::void_ptr initialize_tvm(const mc_rbdyn::Robot & robot,
-                                       const std::array<double, 5> & damperSecond,
-                                       double vp)
-{
-  return mc_rtc::make_void_ptr<TVMKinematicsConstraint>(robot, damperSecond, vp);
-}
 
 static mc_rtc::void_ptr initialize_tvm(const mc_rbdyn::Robot & robot)
 {
@@ -205,31 +199,8 @@ static mc_rtc::void_ptr initialize(QPSolver::Backend backend,
   }
 }
 
-static mc_rtc::void_ptr initialize(QPSolver::Backend backend,
-                                   const mc_rbdyn::Robots & robots,
-                                   unsigned int robotIndex,
-                                   const std::array<double, 5> & damperSecond,
-                                   double velocityPercent)
-{
-  switch(backend)
-  {
-    case QPSolver::Backend::TVM:
-      return initialize_tvm(robots.robot(robotIndex), damperSecond, velocityPercent);
-    default:
-      mc_rtc::log::error_and_throw("[KinematicsConstraint] Not implemented for solver backend: {}", backend);
-  }
-}
-
 KinematicsConstraint::KinematicsConstraint(const mc_rbdyn::Robots & robots, unsigned int robotIndex, double timeStep)
 : constraint_(initialize(backend_, robots, robotIndex, timeStep))
-{
-}
-
-KinematicsConstraint::KinematicsConstraint(const mc_rbdyn::Robots & robots,
-                                           unsigned int robotIndex,
-                                           const std::array<double, 5> & damperSecond,
-                                           double velocityPercent)
-: constraint_(initialize(backend_, robots, robotIndex, damperSecond, velocityPercent))
 {
 }
 
