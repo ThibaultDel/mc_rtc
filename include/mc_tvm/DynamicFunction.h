@@ -14,8 +14,6 @@
 
 #include <SpaceVecAlg/SpaceVecAlg>
 
-#include <mc_rbdyn/VirtualTorqueSensor.h>
-
 namespace mc_tvm
 {
 

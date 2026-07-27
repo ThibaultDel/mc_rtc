@@ -12,7 +12,6 @@
 #include <mc_rtc/gui/NumberInput.h>
 
 #include <cmath>
-#include <tvm/task_dynamics/None.h>
 
 #include <tvm/task_dynamics/None.h>
 

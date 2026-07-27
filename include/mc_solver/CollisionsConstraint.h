@@ -112,6 +112,9 @@ public:
   /** Remove all collisions from the constraint */
   void reset();
 
+  /** Get the automated monitoring setting */
+  inline bool automaticMonitor() const noexcept { return autoMonitor_; }
+
   /** Add collision logging
    * \param a True to enable collision logging, false to disable
    */

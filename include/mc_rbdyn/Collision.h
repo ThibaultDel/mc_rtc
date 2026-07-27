@@ -35,7 +35,6 @@ struct MC_RBDYN_DLLAPI Collision
     r1JointsInactive(r1JointsInactive), r2JointsInactive(r2JointsInactive), overDamping(m), lambda(lambda)
   {
   }
-  
   std::string body1; /** First body in the constraint */
   std::string body2; /** Second body in the constraint */
   double iDist; /** Interaction distance */

@@ -508,7 +508,7 @@ void Gripper::run(double timeStep, mc_rbdyn::Robot & robot, mc_rbdyn::Robot & re
       overCommandLimitIter[i]++;
       if(overCommandLimitIter[i] == config_.overCommandLimitIterN)
       {
-        // mc_rtc::log::warning("Gripper safety triggered on {}", names[i]);
+        mc_rtc::log::warning("Gripper safety triggered on {}", names[i]);
         overCommandLimit[i] = true;
         if(reversed_) { actualQ[i] = actualQ[i] + config_.releaseSafetyOffset; }
         else

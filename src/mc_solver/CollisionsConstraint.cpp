@@ -420,9 +420,15 @@ void CollisionsConstraint::__editCollision(mc_solver::QPSolver & solver, const m
         }
       }
       if(inactive) { return jointsToSelector<false>(robots.robot(rIndex), *joints); }
-      else { return jointsToSelector<true>(robots.robot(rIndex), *joints); }
+      else
+      {
+        return jointsToSelector<true>(robots.robot(rIndex), *joints);
+      }
     }
-    else { return Eigen::VectorXd::Zero(0).eval(); }
+    else
+    {
+      return Eigen::VectorXd::Zero(0).eval();
+    }
   };
 
   auto r1Selector = computeJointsSelector(col.r1Joints, col.r1JointsInactive, r1Index);

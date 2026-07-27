@@ -97,6 +97,7 @@ public:
   inline const tvm::VariablePtr & alphaD() const noexcept { return ddq_; }
   /** Access q second derivative (joint acceleration) */
   inline tvm::VariablePtr & alphaD() noexcept { return ddq_; }
+
   /** Access joint acceleration from external forces (const) */
   inline const Eigen::VectorXd & alphaDExternal() const noexcept { return ddq_ext_; }
   /** Access joint acceleration from external forces */
@@ -139,6 +140,7 @@ public:
   inline const tvm::VariablePtr & tau() const noexcept { return tau_; }
   /** Access tau variable */
   inline tvm::VariablePtr & tau() { return tau_; }
+
   /** Access tau external variable (const) */
   inline const Eigen::VectorXd & tauExternal() const noexcept { return tau_ext_; }
   /** Access tau external variable */

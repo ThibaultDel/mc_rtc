@@ -430,7 +430,6 @@ void TorqueTask::jointWeights(const std::map<std::string, double> & jws)
     {
       auto jIndex = mb.jointIndexByName(jw.first);
       if(mb.joint(jIndex).dof() > 0) { dimW[mb.jointPosInDof(jIndex)] = jw.second; }
-      // No warning, it's probably over specified
     }
     else
     {
