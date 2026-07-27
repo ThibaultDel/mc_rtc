@@ -72,6 +72,19 @@ public:
                         const waypoints_t & posWp = {},
                         const std::vector<std::pair<double, Eigen::Matrix3d>> & oriWp = {});
 
+  typedef Eigen::Vector3d Point;
+  typedef Point point_t;
+  typedef ndcurves::curve_constraints<point_t> curve_constraints_t;
+  
+  BSplineTrajectoryTask(const mc_rbdyn::RobotFrame & frame,
+                      double duration,
+                      double stiffness,
+                      double weight,
+                      const sva::PTransformd & target,
+                      const curve_constraints_t & constr = {},
+                      const waypoints_t & posWp = {},
+                      const std::vector<std::pair<double, Eigen::Matrix3d>> & oriWp = {});
+
   /*! \brief const accessor to the underlying spline (used by SplineTrajectoryTask)
    *
    * \returns The spline

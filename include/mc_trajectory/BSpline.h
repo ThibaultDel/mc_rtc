@@ -34,6 +34,17 @@ public:
           const Eigen::Vector3d & target,
           const waypoints_t & waypoints = {});
 
+  // Jimmy
+  // BSpline with curve_constraints
+  typedef Eigen::Vector3d Point;
+  typedef Point point_t;
+  typedef ndcurves::curve_constraints<point_t> curve_constraints_t;
+  BSpline(double duration,
+          const Eigen::Vector3d & start,
+          const Eigen::Vector3d & target,
+          const curve_constraints_t & constr = {},
+          const waypoints_t & waypoints = {});
+  
   /*! \brief Triggers recreation of the curve. Will only occur if the curve
    * parameters were modified (waypoints, target), or the sampling size has
    * changed.
@@ -65,8 +76,13 @@ public:
    */
   void addToGUI(mc_rtc::gui::StateBuilder & gui, const std::vector<std::string> & category);
 
+  const std::unique_ptr<bezier_curve_t> & get_bezier() const;  
+
 private:
   std::unique_ptr<bezier_curve_t> spline = nullptr;
+  curve_constraints_t constr_;
+  bool with_constraints = false;
+  
 };
 
 } // namespace mc_trajectory

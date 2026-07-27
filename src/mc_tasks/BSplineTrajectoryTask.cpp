@@ -15,6 +15,10 @@
 
 namespace mc_tasks
 {
+  //  Helene et Jimmy
+  typedef Eigen::Vector3d Point;
+  typedef Point point_t;
+  typedef ndcurves::curve_constraints<point_t> curve_constraints_t;
 
 using BSpline = mc_trajectory::BSpline;
 
@@ -40,6 +44,31 @@ BSplineTrajectoryTask::BSplineTrajectoryTask(const mc_rbdyn::RobotFrame & frame,
                                              const std::vector<std::pair<double, Eigen::Matrix3d>> & oriWp)
 : SplineTrajectoryTask<BSplineTrajectoryTask>(frame, duration, stiffness, weight, target.rotation(), oriWp),
   bspline(duration, frame.position().translation(), target.translation(), posWp)
+{
+  type_ = "bspline_trajectory";
+  name_ = "bspline_trajectory_" + frame.robot().name() + "_" + frame.name();
+}
+
+// Add the declaration in /home/jimmyvu/Documents/mc_rtc/src/mc_rtc/include/mc_tasks/BSplineTrajectoryTask.h
+BSplineTrajectoryTask::BSplineTrajectoryTask(const mc_rbdyn::RobotFrame & frame,
+                      double duration,
+                      double stiffness,
+                      double weight,
+                      const sva::PTransformd & target,
+                      const curve_constraints_t & constr,
+                      const waypoints_t & posWp,
+                      const std::vector<std::pair<double, Eigen::Matrix3d>> & oriWp)
+: SplineTrajectoryTask<BSplineTrajectoryTask>(frame, 
+                                              duration, 
+                                              stiffness, 
+                                              weight,
+                                               target.rotation(),
+                                               oriWp),
+  bspline(duration,
+     frame.position().translation(), 
+     target.translation(), 
+     constr, 
+     posWp)
 {
   type_ = "bspline_trajectory";
   name_ = "bspline_trajectory_" + frame.robot().name() + "_" + frame.name();

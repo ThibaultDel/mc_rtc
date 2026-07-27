@@ -8,6 +8,7 @@
 
 #include <mc_trajectory/InterpolatedRotation.h>
 #include <mc_trajectory/SequenceInterpolator.h>
+#include <ndcurves/curve_constraint.h>
 
 namespace mc_tasks
 {
@@ -62,6 +63,17 @@ struct SplineTrajectoryTask : public TrajectoryTaskGeneric
                        double stiffness,
                        double weight,
                        const Eigen::Matrix3d & target,
+                       const std::vector<std::pair<double, Eigen::Matrix3d>> & oriWp = {});
+
+  typedef Eigen::Vector3d Point;
+  typedef Point point_t;
+  typedef ndcurves::curve_constraints<point_t> curve_constraints_t;
+  SplineTrajectoryTask(const mc_rbdyn::RobotFrame & frame,
+                       double duration,
+                       double stiffness,
+                       double weight,
+                       const Eigen::Matrix3d & target,
+                       const curve_constraints_t & constr,
                        const std::vector<std::pair<double, Eigen::Matrix3d>> & oriWp = {});
 
   /*! \brief Load parameters from a Configuration object */

@@ -18,6 +18,20 @@ BSpline::BSpline(double duration,
                  const std::vector<Eigen::Vector3d> & waypoints)
 : Spline<Eigen::Vector3d, std::vector<Eigen::Vector3d>>(duration, start, target, waypoints)
 {
+  std::cout << "Using the BSpline constructor without constraints" << std::endl;
+  with_constraints = false;
+  update();
+}
+
+BSpline::BSpline(double duration,
+                 const Eigen::Vector3d & start,
+                 const Eigen::Vector3d & target,
+                 const curve_constraints_t & constr,
+                 const std::vector<Eigen::Vector3d> & waypoints)
+: Spline<Eigen::Vector3d, std::vector<Eigen::Vector3d>>(duration, start, target, waypoints), constr_(constr)
+{
+  with_constraints = true;
+  std::cout << "Using the BSpline constructor with constraints" << std::endl;
   update();
 }
 
@@ -25,13 +39,26 @@ void BSpline::update()
 {
   if(needsUpdate_)
   {
+    
     // Waypoints including start and target position
     std::vector<Eigen::Vector3d> waypoints;
     waypoints.reserve(waypoints_.size() + 2);
     waypoints.push_back(start_);
     for(const auto & wp : waypoints_) { waypoints.push_back(wp); }
     waypoints.push_back(target_);
-    spline.reset(new BSpline::bezier_curve_t(waypoints.begin(), waypoints.end(), 0.0, duration_));
+    if (with_constraints)
+    {
+      // std::cout << "Using the BSpline update function with constraints" << std::endl;
+      spline.reset(new BSpline::bezier_curve_t(waypoints.begin(),
+      waypoints.end(), 
+      constr_,
+      0.0,
+      duration_));
+    }
+    else{
+      // std::cout << "Using the BSpline update function WITHOUT constraints" << std::endl;
+      spline.reset(new BSpline::bezier_curve_t(waypoints.begin(), waypoints.end(), 0.0, duration_));
+    }
     samples_ = this->sampleTrajectory();
     needsUpdate_ = false;
   }
@@ -91,5 +118,10 @@ void BSpline::addToGUI(mc_rtc::gui::StateBuilder & gui, const std::vector<std::s
                                          }));
   }
 }
+
+const std::unique_ptr<BSpline::bezier_curve_t> &BSpline::get_bezier() const
+{
+  return spline;
+}  
 
 } // namespace mc_trajectory
