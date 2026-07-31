@@ -31,9 +31,6 @@ ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::
 
   b_ = Eigen::VectorXd::Zero(robot.mb().nrDof());
 
-  Eigen::MatrixXd P_n_sub = normal_ * normal_.transpose();
-  P_n = Eigen::Matrix<double, 6, 6>::Zero();
-  P_n.block<3,3>(0,0) = P_n_sub;
   mc_rtc::log::info("normal Pn constraint{}",P_n);
   tau_imp_pred = Eigen::VectorXd::Zero(robot_.mb().nrDof());
   tau_imp_act = Eigen::VectorXd::Zero(robot_.mb().nrDof());
@@ -76,39 +73,30 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   const auto & world_frame_jacobian_dot = jac_.jacobianDot(robot_mb, mbc);
   Eigen::MatrixXd full_world_frame_jacobian_dot(6, robot_.mb().nrDof());
   jac_.fullJacobian(robot_mb, world_frame_jacobian_dot, full_world_frame_jacobian_dot);
+  P_n = normal_ * normal_.transpose();
 
   assert(full_world_frame_jacobian.cols() == robot_.mb().nrDof());
 
-  // Generate necessary matrices
-  //Eigen::MatrixXd j_m_uninverted = full_world_frame_jacobian * M.inverse() * full_world_frame_jacobian.transpose();
-  //assert(std::abs(j_m_uninverted.determinant()) > 1e-5 && "j_m_uninverted matrix is singular");
-  //Eigen::MatrixXd j_m = full_world_frame_jacobian.transpose() * j_m_uninverted.inverse();
-
-  //Eigen::MatrixXd J_=full_world_frame_jacobian;
-  //Eigen::MatrixXd J_d_=full_world_frame_jacobian_dot;
-  
   Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
   Eigen::MatrixXd linear_jacobiand = full_world_frame_jacobian_dot.bottomRows(3);
 
   Eigen::MatrixXd C = coriolis_calculator_.coriolis(robot_.mb(), robot_.mbc());
   Eigen::MatrixXd M_d_ = C+C.transpose();
 
-  //Eigen::MatrixXd J_dq_new = (-1.f) * ((c_res_+1.f)/(delta_t_/**lambda*/)) *(J_d_.transpose()*j_m_uninverted.inverse() -
-  //  j_m*(J_d_*M.inverse()*J_.transpose()-J_*M.inverse()*M_d_*M.inverse()*J_.transpose() +
-  //  J_*M.inverse()*J_d_.transpose())*j_m_uninverted.inverse())*P_n*J_ +
-  //  (-1.f) * ((c_res_+1.f)/(delta_t_/**lambda*/)) *j_m*P_n*J_d_;// - j_m*P_n*J_;
+  Eigen::MatrixXd Mi = M.inverse();
 
-  me=1/(n.transpose()*J_*M*J_.transpose()*n);
-  me_d=-n.transpose()*(J_d_*M*J_.transpose()+J_*M_d_*J_.transpose()+J_*M*J_d_.transpose())*n*me*me
+  double me = 1/(normal_.transpose() * linear_jacobian * Mi * linear_jacobian.transpose() * normal_);
+  double me_d = -1. * (normal_.transpose() * (linear_jacobiand * Mi * linear_jacobian.transpose() -
+    linear_jacobian * Mi * M_d_ * Mi * linear_jacobian.transpose() +
+    linear_jacobian * Mi * linear_jacobiand.transpose()) * normal_)(0,0) * me * me;
+    
+  Eigen::MatrixXd J_dq_new = -((c_res_+1)/delta_t_) * (linear_jacobiand.transpose() * me * P_n * linear_jacobian +
+    linear_jacobian.transpose() * me_d * P_n * linear_jacobian +
+    linear_jacobian.transpose() * me * P_n * linear_jacobiand);
 
-  Eigen::MatrixXd J_dq_new = -(c_res+1)/delta_t_*(linear_jacobiand.transpose()*me*P_n_sub*linear_jacobian+
-    linear_jacobian.transpose()*me_d*P_n_sub*linear_jacobian+
-    linear_jacobian.transpose()*me*P_n_sub*linear_jacobiand);
+  q_d = tvm::dot(robot.q(),1)->value();
 
-    q_d = tvm::dot(robot.q(),1)->value();
-  q_dd = tvm::dot(robot.q(),2)->value();
-
-  b_ = pre_multiplier_*J_dq_new * q_d;
+  b_ = pre_multiplier_ * J_dq_new * q_d;
  
   // These are now used as constants but if used in a final version should be taken in initialization from input parameters
   double timestep = 0.002;
@@ -169,10 +157,6 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   last_joint_velocities_ = num_qd;
 
   // now add the limits termwise, lambda*sng(tau_I_max - tau_I)*sqrt(tau_I_max - tau_I)
-  //tau_imp_act = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_*num_qd;// the hypothesis of a full momentum back
-
-  //tau_imp_pred = (-1.f*(c_res_+1)/delta_t_)*j_m*P_n*J_*q_d; 
-
   assert(b_.size() == robot_.mb().nrDof());
   assert(limit_high_.size() == robot_.mb().nrDof());
   assert(limit_low_.size() == robot_.mb().nrDof());
@@ -216,15 +200,7 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
     }
   }
 
-   tau_imp_deriv = (-1.f*(c_res_+1)/delta_t_)*((J_d_.transpose()*j_m_uninverted.inverse() -
-     j_m*(J_d_*M.inverse()*J_.transpose()-J_*M.inverse()*M_d_*M.inverse()*J_.transpose() +
-     J_*M.inverse()*J_d_.transpose())*j_m_uninverted.inverse())*P_n*J_ * q_d
-     + j_m*P_n*(J_d_ * q_d + J_ * q_dd/*q_ddot_var_->value()*/));
 
-   tau_imp_deriv_num = (-1.f*(c_res_+1)/delta_t_)*((J_d_.transpose()*j_m_uninverted.inverse() -
-     j_m*(J_d_*M.inverse()*J_.transpose()-J_*M.inverse()*M_d_*M.inverse()*J_.transpose() +
-     J_*M.inverse()*J_d_.transpose())*j_m_uninverted.inverse())*P_n*J_ * q_d
-     + j_m*P_n*(J_d_ * q_d + J_ * num_qdd));
 }
 
 void ImpulseFunction::updateJacobian()
@@ -244,21 +220,15 @@ void ImpulseFunction::updateJacobian()
   const auto & world_frame_jacobian = jac_.jacobian(robot_mb, mbc);
   Eigen::MatrixXd full_world_frame_jacobian(6, robot_.mb().nrDof());
   jac_.fullJacobian(robot_mb, world_frame_jacobian, full_world_frame_jacobian);
+  P_n = normal_ * normal_.transpose();
 
   const Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
-  const Eigen::Matrix3d MobilityMatrix = linear_jacobian*M.inverse()*linear_jacobian.transpose();
-  double effective_mass=1/(normal_.transpose()*MobilityMatrix*normal_);
+  double me=1/(normal_.transpose() * linear_jacobian*M.inverse()*linear_jacobian.transpose() * normal_);
 
   assert(full_world_frame_jacobian.cols() == robot_.mb().nrDof());
 
   // // Generate necessary matrices
-  //Eigen::MatrixXd j_m_uninverted = /*full_world_frame_jacobian.transpose() * */(full_world_frame_jacobian * M.inverse() * full_world_frame_jacobian.transpose());
-  //assert(std::abs(j_m_uninverted.determinant()) > 1e-5 && "j_m_uninverted is singular");
-  //Eigen::MatrixXd j_m_before_premult_J = j_m_uninverted.inverse();
-  //Eigen::MatrixXd j_m = full_world_frame_jacobian.transpose() * j_m_uninverted.inverse();
-  
-  // J_ddq = -1.f * ((c_res_+1.f)/(delta_t_/**lambda*/)) * pre_multiplier_ * j_m * P_n * full_world_frame_jacobian;// + 0.5*0.002*J_dq_new;              // multiplies ddq variable
-  J_ddq = -1.f * ((c_res_+1.f)/(delta_t_/**lambda*/)) * linear_jacobian * effective_mass * P_n * linear_jacobian;// multiplies ddq variable
+  J_ddq = -1.f * ((c_res_+1.f)/(delta_t_/**lambda*/)) * pre_multiplier_ * linear_jacobian.transpose() * me * P_n * linear_jacobian;// multiplies ddq variable
 
   splitJacobian(J_ddq, robot.alphaD());
 }
