@@ -129,7 +129,7 @@ protected:
 
   rbd::Jacobian jac_;
 
-  Eigen::Matrix<double, 6, 6> P_n;
+  Eigen::Matrix<double, 3, 3> P_n;
 
   rbd::Coriolis coriolis_calculator_;
 
