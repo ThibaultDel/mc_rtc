@@ -182,12 +182,8 @@ void ImpulseConstraint::add_logs(){
   logger_.addLogEntry("ImpulseConstraint_ImpulsiveTorqueUpperlimit", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->UpperLimit();});
   //
-  logger_.addLogEntry("ImpulsiveTorqueTrue_speedMethodCut", this, [&, this]()
-  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ImpulsiveTorqueTrueSpeed();});
-  
-  //ImpulsiveTorqueTrueForce not initialized yet
-  //logger_.addLogEntry("ImpulsiveTorqueTrue_force", this, [&, this]()
-  //{return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ImpulsiveTorqueTrueForce();});
+  //logger_.addLogEntry("ImpulsiveTorqueTrue_speedMethodCut", this, [&, this]()
+  //{return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ImpulsiveTorqueTrueSpeed();});
 
   logger_.addLogEntry("ImpulseConstraint_PredictedImpulsiveTorqueActual", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ActualImpulsiveTorquePrediction();});
@@ -204,11 +200,11 @@ void ImpulseConstraint::add_logs(){
   // logger_.addLogEntry("ActualPredictedImpulsiveTorque", this, [&, this]()
   // {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ActualImpulsiveTorqures();});
   //
-  logger_.addLogEntry("ImpulseConstraint_PredictedImpulsiveTorqueDerivativeExpected", this, [&, this]()
-  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ImpulsiveTorquePredictionDerivative();});
+  //logger_.addLogEntry("ImpulseConstraint_PredictedImpulsiveTorqueDerivativeExpected", this, [&, this]()
+  //{return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ImpulsiveTorquePredictionDerivative();});
   //
-  logger_.addLogEntry("ImpulseConstraint_PredictedImpulsiveTorqueDerivativeNumerical", this, [&, this]()
-  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ImpulsiveTorquePredictionDerivativeNum();});
+  //logger_.addLogEntry("ImpulseConstraint_PredictedImpulsiveTorqueDerivativeNumerical", this, [&, this]()
+  //{return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->ImpulsiveTorquePredictionDerivativeNum();});
   //
   // logger_.addLogEntry("PredictedImpulsiveTorqueDerivative_term1", this, [&, this]()
   // {return static_cast<TVMImpulseConstraint *>(constraint_.get())->ImpulsiveTorquresDerivative_term1();});

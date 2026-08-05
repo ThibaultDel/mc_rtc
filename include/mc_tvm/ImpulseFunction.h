@@ -46,16 +46,11 @@ public:
 
   Eigen::VectorXd & ImpulsiveTorquePrediction(){ return tau_imp_pred; }
 
-  Eigen::VectorXd & ImpulsiveTorqueTrueSpeed(){ return tau_imp_true_speed; }
-  //
-  Eigen::VectorXd & ImpulsiveTorqueTrueForce(){ return tau_imp_true_force; }
-
   Eigen::VectorXd & ActualImpulsiveTorquePrediction(){ return tau_imp_act; }
 
   Eigen::VectorXd & ImpulsiveTorquePredictionDerivative(){ return tau_imp_deriv; }
 
   Eigen::VectorXd & ImpulsiveTorquePredictionDerivativeNum(){ return tau_imp_deriv_num; }
-
 
   Eigen::VectorXd & JointAcc();
 
