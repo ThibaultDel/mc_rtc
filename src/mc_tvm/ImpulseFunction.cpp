@@ -145,7 +145,6 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   num_qd(39) = current_vel.at(24);//RWRP
   num_qd(40) = current_vel.at(25);//RHDY
 
-  
   // Take the numerical derivative of the joint velocities
   for (int i = 0; i < robot_.mb().nrDof(); ++i)
   {
@@ -153,7 +152,8 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
     double past_speed = last_joint_velocities_(i);
     num_qdd(i) = (current_speed - past_speed) / timestep;
   }
-
+  
+  tau_imp_pred=-1.f * (1+c_res_)/delta_t_ * linear_jacobian.transpose()*me*P_n*linear_jacobian*num_qd;
   last_joint_velocities_ = num_qd;
 
   // now add the limits termwise, lambda*sng(tau_I_max - tau_I)*sqrt(tau_I_max - tau_I)
@@ -168,15 +168,15 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
     {
       if (diff_upper_(i) >= 0 /*|| diff2 <= 0*/)
       {
-        b_(i) += /*std::sqrt*/(lambda(i))* /*std::sqrt*/(diff_upper_(i));
+        b_(i) += /*std::sqrt*/(lambda(i))* /*std::sqrt*/(diff_upper_(i))/2;
         constraint_right_side_(i) = -1.0*lambda(i)* /*std::sqrt*/(diff_upper_(i));
       } else if (diff_lower_(i) < 0)
       {
-        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.0*diff_upper_(i));
+        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.0*diff_upper_(i))/2;
         constraint_right_side_(i) = -1.0*lambda(i)*diff_upper_(i);
       }else
       {
-        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.f*diff_upper_(i));
+        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.f*diff_upper_(i))/2;
         constraint_right_side_(i) = -1.0*lambda(i)*diff_upper_(i);
       }
     }
@@ -186,15 +186,15 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
     {
       if (diff_lower_(i) < 0/* || diff2 >= 0*/)
       {
-        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.0*diff_lower_(i));
+        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.0*diff_lower_(i))/2;
         constraint_right_side_(i) = -1.0*lambda(i)* /*std::sqrt*/(diff_lower_(i));
       } else if (diff_upper_(i) >= 0)
       {
-        b_(i) += /*std::sqrt*/(lambda(i))* /*std::sqrt*/(diff_lower_(i));
+        b_(i) += /*std::sq rt*/(lambda(i))* /*std::sqrt*/(diff_lower_(i))/2;
         constraint_right_side_(i) = -1.0*lambda(i)*diff_lower_(i);
       } else
       {
-        b_(i) += /*std::sqrt*/(lambda(i))* /*std::sqrt*/(diff_lower_(i));
+        b_(i) += /*std::sqrt*/(lambda(i))* /*std::sqrt*/(diff_lower_(i))/2;
         constraint_right_side_(i) = -1.0*lambda(i)*diff_lower_(i);
       }
     }
@@ -243,7 +243,7 @@ for (int i = 0; i < robot_.mb().nrDof(); ++i)
     diff_lower_(i) = tau_imp_pred(i) - limit_multiplier_*limit_low_(i);
 
 
-    if(diff_upper_(i) || diff_lower_(i))
+    if(diff_upper_(i)>0 || diff_lower_(i)<0)
       lambda(i)=lambda_high;
     else 
       lambda(i)=lambda_low;

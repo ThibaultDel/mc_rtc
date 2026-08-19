@@ -156,6 +156,10 @@ void ImpulseConstraint::removeFromSolverImpl(mc_solver::QPSolver & solver)
   }
 }
 
+  const Eigen::VectorXd & ImpulseConstraint::LowerLimit() {return static_cast<TVMImpulseConstraint *>(constraint_.get())->LowerLimit();}
+  const Eigen::VectorXd & ImpulseConstraint::UpperLimit() {return static_cast<TVMImpulseConstraint *>(constraint_.get())->UpperLimit();}
+  Eigen::VectorXd & ImpulseConstraint::EffectiveLambda(){ return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->EffectiveLambda();}
+
 void ImpulseConstraint::add_logs(){
 
   logger_.addLogEntry("Hammer tip velocity constraint", [&, this]()

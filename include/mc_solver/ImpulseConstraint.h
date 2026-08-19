@@ -6,7 +6,7 @@
 
 #include <mc_rbdyn/Robots.h>
 #include <mc_solver/ConstraintSet.h>
-#include "mc_tvm/ImpulseFunction.h"
+#include <mc_tvm/ImpulseFunction.h>
 
 #include <mc_rtc/log/Logger.h>
 
@@ -43,6 +43,10 @@ public:
                         mc_rtc::Logger & logger);
 
   mc_rtc::void_ptr & getConstraint(){return constraint_;}
+
+  const Eigen::VectorXd & LowerLimit();
+  const Eigen::VectorXd & UpperLimit();
+  Eigen::VectorXd & EffectiveLambda();
 
 protected:
   /** Implementation of mc_solver::ConstraintSet::addToSolver */
