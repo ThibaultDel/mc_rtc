@@ -64,6 +64,7 @@ public:
   
   Eigen::VectorXd end_effector_vel;
 
+  Eigen::MatrixXd M_previous;
   
 protected:
   void updateb();

@@ -46,6 +46,7 @@ ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::
   diff_lower_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
   high_lambda_latch_ = std::vector<bool>(robot_.mb().nrDof(), false);
   high_lambda_latch_count_ = Eigen::VectorXi::Zero(robot_.mb().nrDof());
+  M_previous = robot_.tvmRobot().H();
 
   constraint_right_side_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
 }
@@ -56,7 +57,7 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   // mc_rtc::log::info("Landed in the updateb of ImpulseFunction");
   const auto & robot = robot_.tvmRobot();
   auto M = robot.H();
-
+  
   // Check the mass matrix before inversion (for better debugging)
   assert(M.rows() == robot_.mb().nrDof());
   assert(M.cols() == robot_.mb().nrDof());
@@ -81,8 +82,8 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   Eigen::MatrixXd linear_jacobiand = full_world_frame_jacobian_dot.bottomRows(3);
 
   Eigen::MatrixXd C = coriolis_calculator_.coriolis(robot_.mb(), robot_.mbc());
-  Eigen::MatrixXd M_d_ = C+C.transpose();
-
+  Eigen::MatrixXd M_d_ = (M-M_previous)/delta_t_;
+  M_previous=M;
   Eigen::MatrixXd Mi = M.inverse();
 
   double me = 1/(normal_.transpose() * linear_jacobian * Mi * linear_jacobian.transpose() * normal_);
@@ -153,7 +154,7 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
     num_qdd(i) = (current_speed - past_speed) / timestep;
   }
   
-  tau_imp_pred=-1.f * (1+c_res_)/delta_t_ * linear_jacobian.transpose()*me*P_n*linear_jacobian*num_qd;
+  tau_imp_pred=-1.f * (1+c_res_)/delta_t_ * linear_jacobian.transpose()*me*P_n*linear_jacobian*q_d;
   last_joint_velocities_ = num_qd;
 
   // now add the limits termwise, lambda*sng(tau_I_max - tau_I)*sqrt(tau_I_max - tau_I)
@@ -162,21 +163,22 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   assert(limit_low_.size() == robot_.mb().nrDof());
   assert(tau_imp_pred.size() == robot_.mb().nrDof());
   getLambda();
+
   if(enforce_high_limit_)
   {
     for (int i = startParam; i < b_.size(); ++i)
     {
       if (diff_upper_(i) >= 0 /*|| diff2 <= 0*/)
       {
-        b_(i) += /*std::sqrt*/(lambda(i))* /*std::sqrt*/(diff_upper_(i))/2;
+        b_(i) += /*std::sqrt*/(lambda(i))* /*std::sqrt*/(diff_upper_(i));
         constraint_right_side_(i) = -1.0*lambda(i)* /*std::sqrt*/(diff_upper_(i));
-      } else if (diff_lower_(i) < 0)
+      } else if (diff_lower_(i) <= 0)
       {
-        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.0*diff_upper_(i))/2;
+        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.0*diff_upper_(i));
         constraint_right_side_(i) = -1.0*lambda(i)*diff_upper_(i);
       }else
       {
-        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.f*diff_upper_(i))/2;
+        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.f*diff_upper_(i));
         constraint_right_side_(i) = -1.0*lambda(i)*diff_upper_(i);
       }
     }
@@ -186,15 +188,15 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
     {
       if (diff_lower_(i) < 0/* || diff2 >= 0*/)
       {
-        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.0*diff_lower_(i))/2;
+        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.0*diff_lower_(i));
         constraint_right_side_(i) = -1.0*lambda(i)* /*std::sqrt*/(diff_lower_(i));
       } else if (diff_upper_(i) >= 0)
       {
-        b_(i) += /*std::sq rt*/(lambda(i))* /*std::sqrt*/(diff_lower_(i))/2;
+        b_(i) += /*std::sq rt*/(lambda(i))* /*std::sqrt*/(diff_lower_(i));
         constraint_right_side_(i) = -1.0*lambda(i)*diff_lower_(i);
       } else
       {
-        b_(i) += /*std::sqrt*/(lambda(i))* /*std::sqrt*/(diff_lower_(i))/2;
+        b_(i) += /*std::sqrt*/(lambda(i))* /*std::sqrt*/(diff_lower_(i));
         constraint_right_side_(i) = -1.0*lambda(i)*diff_lower_(i);
       }
     }
