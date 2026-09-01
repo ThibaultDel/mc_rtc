@@ -66,6 +66,8 @@ public:
 
   Eigen::MatrixXd M_previous;
   
+  double me_previous;
+
 protected:
   void updateb();
 
@@ -107,7 +109,7 @@ protected:
 
   Eigen::VectorXd lambda;
 
-  Eigen::VectorXd tau_imp_true_speed;
+  Eigen::VectorXd me_d;
   Eigen::VectorXd tau_imp_true_force;
   Eigen::VectorXd tau_imp_pred;
   Eigen::VectorXd tau_imp_act;

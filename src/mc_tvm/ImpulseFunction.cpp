@@ -75,6 +75,7 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   Eigen::MatrixXd full_world_frame_jacobian_dot(6, robot_.mb().nrDof());
   jac_.fullJacobian(robot_mb, world_frame_jacobian_dot, full_world_frame_jacobian_dot);
   P_n = normal_ * normal_.transpose();
+  mc_rtc::log::info("P_n{}",P_n);
 
   assert(full_world_frame_jacobian.cols() == robot_.mb().nrDof());
 
@@ -90,7 +91,8 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   double me_d = -1. * (normal_.transpose() * (linear_jacobiand * Mi * linear_jacobian.transpose() -
     linear_jacobian * Mi * M_d_ * Mi * linear_jacobian.transpose() +
     linear_jacobian * Mi * linear_jacobiand.transpose()) * normal_)(0,0) * me * me;
-    
+  mc_rtc::log::info("me_dnum-me_d = {}",(me-me_previous)/delta_t_-me_d);
+  me_previous=me;
   Eigen::MatrixXd J_dq_new = -((c_res_+1)/delta_t_) * (linear_jacobiand.transpose() * me * P_n * linear_jacobian +
     linear_jacobian.transpose() * me_d * P_n * linear_jacobian +
     linear_jacobian.transpose() * me * P_n * linear_jacobiand);
