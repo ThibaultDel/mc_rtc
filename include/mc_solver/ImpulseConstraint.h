@@ -64,6 +64,8 @@ protected:
 
   void add_logs();
 
+  void rm_logs();
+
   mc_rtc::Logger & logger_;
 };
 

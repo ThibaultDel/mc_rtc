@@ -78,6 +78,7 @@ void TVMImpulseConstraint::addToSolver(mc_solver::TVMQPSolver & solver)
 
 void TVMImpulseConstraint::removeFromSolver(mc_solver::TVMQPSolver & solver)
 {
+  rm_logs();
   for(auto & c : mimics_constraints_)
   {
     solver.problem().removeSubstitutionFor(*solver.problem().constraint(*c));
@@ -160,9 +161,6 @@ void ImpulseConstraint::add_logs(){
 
   logger_.addLogEntry("Hammer tip velocity constraint", [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->end_effector_vel;});
-
-  logger_.addLogEntry("ImpulseConstraint_Evaluation_lower", [&, this]()
-  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->value();});
 
   logger_.addLogEntry("ImpulseConstraint_Evaluation_lower", [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->value();});
@@ -257,4 +255,25 @@ void ImpulseConstraint::add_logs(){
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->JointVelNum();});
 
   }
+
+
+void ImpulseConstraint::rm_logs(){
+    logger_.removeLogEntry("Hammer tip velocity constraint");
+    logger_.removeLogEntry("ImpulseConstraint_Evaluation_lower");
+    logger_.removeLogEntry("ImpulseConstraint_Evaluation_upper");
+    logger_.removeLogEntry("ImpulseConstraint_Elementwise_lambda_low");
+    logger_.removeLogEntry("ImpulseConstraint_Elementwise_lambda_high");
+    logger_.removeLogEntry("ImpulseConstraint_ImpulsiveTorqueLowerlimit");
+    logger_.removeLogEntry("ImpulseConstraint_ImpulsiveTorqueUpperlimit");
+    logger_.removeLogEntry("ImpulsiveTorqueTrue_speedMethodCut");
+    logger_.removeLogEntry("ImpulseConstraint_PredictedImpulsiveTorqueActual");
+    logger_.removeLogEntry("ImpulseConstraint_PredictedImpulsiveTorque");
+    logger_.removeLogEntry("ImpulseConstraint_PredictedImpulsiveTorqueDerivativeExpected");
+    logger_.removeLogEntry("ImpulseConstraint_PredictedImpulsiveTorqueDerivativeNumerical");
+    logger_.removeLogEntry("ImpulseConstraint_RightSideUpperLimit");
+    logger_.removeLogEntry("ImpulseConstraint_RightSideLowerLimit");
+    logger_.removeLogEntry("ImpulseConstraint_CommandedAcceleration");
+    logger_.removeLogEntry("ImpulseConstraint_numericalAcceleration");
+    logger_.removeLogEntry("ImpulseConstraint_numericalVelocity");
+    }
 } // namespace mc_solver
