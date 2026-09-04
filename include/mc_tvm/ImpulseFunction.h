@@ -67,6 +67,7 @@ public:
   Eigen::MatrixXd M_previous;
   
   double me_previous;
+  Eigen::MatrixXd  jac_p;
 
 protected:
   void updateb();
