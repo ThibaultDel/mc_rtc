@@ -42,13 +42,40 @@ public:
                         // int axis,
                         mc_rtc::Logger & logger);
 
+    /** Regular constraint constructor
+   * Builds a regular joint limits constraint, prefer a damped joint limitsl
+   * This constraint at first make the joint limit torque high and progress linearly 
+   * to the actual torque limit the end effector come closer to the Bspline end
+   * \param ctl Controller which is used to get the trajectory task state
+   * \param robots The robots including the robot affected by this constraint
+   * \param robotIndex The index of the robot affected by this constraint
+   * \param timeStep Solver timestep
+   */
+  ImpulseConstraint(std::shared_ptr<mc_tasks::BSplineTrajectoryTask> BSplineVel,
+                        const mc_rbdyn::Robots & robots,
+                        unsigned int robotIndex,
+                        const mc_rbdyn::RobotFrame & frame,
+                        const Eigen::Vector3d normal,
+                        double lambda_high,
+                        double lambda_low,
+                        double delta_t,
+                        double c_res,
+                        double limit_multiplier,
+                        // int axis,
+                        mc_rtc::Logger & logger,
+                        Eigen::VectorXd tau_high,
+                        double K,
+                        double * Activation_height);
+
   mc_rtc::void_ptr & getConstraint(){return constraint_;}
 
   const Eigen::VectorXd & LowerLimit();
   const Eigen::VectorXd & UpperLimit();
   Eigen::VectorXd & EffectiveLambda();
+  Eigen::VectorXd & TorqueLowerLimit();
+  Eigen::VectorXd & TorqueHigherLimit();
 
-protected:
+  protected:
   /** Implementation of mc_solver::ConstraintSet::addToSolver */
   void addToSolverImpl(mc_solver::QPSolver & solver) override;
   /** Implementation of mc_solver::ConstraintSet::removeFromSolver */

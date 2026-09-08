@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <mc_tasks/BSplineTrajectoryTask.h>
+
 #include <mc_tvm/api.h>
 
 #include <mc_rbdyn/fwd.h>
@@ -40,7 +42,13 @@ public:
   SET_UPDATES(ImpulseFunction, Jacobian, B)
 
   /** Construct the equation of motion for a given robot */
-  ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal , double lambda_high, double lambda_low, double c_res, double delta_t, const Eigen::VectorXd & limit_high, const Eigen::VectorXd & limit_low, bool enforce_high_limit);
+  ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal , double lambda_high, double lambda_low, double c_res, double delta_t, Eigen::VectorXd limit_high, Eigen::VectorXd limit_low, bool enforce_high_limit);
+
+  ImpulseFunction(const std::shared_ptr<mc_tasks::BSplineTrajectoryTask> & BSplineVel, const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal , double lambda_high, double lambda_low, double c_res, double delta_t, Eigen::VectorXd limit_high, Eigen::VectorXd limit_low, bool enforce_high_limit, Eigen::VectorXd tau_high, double K, double * Activation_height );
+
+  Eigen::VectorXd & TorqueLowerLimit(){ return limit_high_; }
+
+  Eigen::VectorXd & TorqueHigherLimit(){ return limit_low_; }
 
   Eigen::VectorXd & EffectiveLambda(){ return lambda; }
 
@@ -78,7 +86,7 @@ protected:
 
   int startParam;
   Eigen::MatrixXd pre_multiplier_;
-
+  std::shared_ptr<mc_tasks::BSplineTrajectoryTask> BSplineVel_;
   const mc_rbdyn::Robot & robot_;
   mc_rbdyn::ConstRobotFramePtr frame_;
   const Eigen::Vector3d normal_;
@@ -87,10 +95,10 @@ protected:
   const double lambda_low;
   const double c_res_;
   const double delta_t_;
-  const Eigen::VectorXd & limit_high_;
-  const Eigen::VectorXd & limit_low_;
+  Eigen::VectorXd limit_high_;
+  Eigen::VectorXd limit_low_;
   const bool enforce_high_limit_;
-
+  bool linear_constraint_flag=false;
 
   Eigen::VectorXd diff_upper_;
   Eigen::VectorXd diff_lower_;
@@ -101,6 +109,10 @@ protected:
   const int high_lambda_latch_max_ = 10;
   const double limit_multiplier_ = 1.0;
   const int lambda_growing_steps = 10;
+
+  double * Activation_height_;
+  double K_;
+  Eigen::VectorXd tau_high_;
 
   Eigen::MatrixXd J_ddq;
 
@@ -116,6 +128,10 @@ protected:
   Eigen::VectorXd tau_imp_act;
   Eigen::VectorXd tau_imp_deriv;
   Eigen::VectorXd tau_imp_deriv_num;
+
+  double Tau_max_initial=0.f; 
+  double dmin=0.f;
+  double dmax=0.f;
 
   Eigen::VectorXd num_qdd;
   Eigen::VectorXd num_qd;

@@ -5,7 +5,7 @@
 #pragma once
 
 #include <mc_solver/TVMQPSolver.h>
-
+#include <mc_tasks/BSplineTrajectoryTask.h>
 #include <mc_tvm/Robot.h>
 
 #include <tvm/ControlProblem.h>
@@ -19,6 +19,7 @@ namespace mc_solver
 
 struct TVMImpulseConstraint
 {
+  std::shared_ptr<mc_tasks::BSplineTrajectoryTask> BSplineVel_;
   const mc_rbdyn::Robot & robot_;
   mc_rbdyn::ConstRobotFramePtr frame_;
   const double lambda_high_;
@@ -30,6 +31,8 @@ struct TVMImpulseConstraint
   std::vector<tvm::TaskWithRequirementsPtr> mimics_constraints_;
 
   TVMImpulseConstraint(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double delta_t, double c_res, double limit_multiplier/*, int axis*/);
+
+  TVMImpulseConstraint(const std::shared_ptr<mc_tasks::BSplineTrajectoryTask> & BSplineVel, const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double delta_t, double c_res, double limit_multiplier, Eigen::VectorXd tau_high, double K, double * Activation_height/*, int axis*/);
 
   void addToSolver(mc_solver::TVMQPSolver & solver);
 
@@ -51,6 +54,8 @@ struct TVMImpulseConstraint
   // Eigen::VectorXd & ImpulsiveTorquresDerivative_term1() { return impFunctionLow()->ImpulsiveTorquePredictionDerivative_term1();}
   // Eigen::VectorXd & ImpulsiveTorquresDerivative_term2() { return impFunctionLow()->ImpulsiveTorquePredictionDerivative_term2();}
   // Eigen::VectorXd & ImpulsiveTorquresDerivative_term3() { return impFunctionLow()->ImpulsiveTorquePredictionDerivative_term3();}
+  Eigen::VectorXd upper_limit_;
+  Eigen::VectorXd lower_limit_;
 
 protected:
   const Eigen::VectorXd const_upper_limit_;
@@ -59,12 +64,12 @@ protected:
   mc_tvm::ImpulseFunctionPtr imp_constr_lower_;
   mc_tvm::ImpulseFunctionPtr imp_constr_upper_;
 
-  Eigen::VectorXd upper_limit_;
-  Eigen::VectorXd lower_limit_;
-
   Eigen::VectorXd upper;
   Eigen::VectorXd lower;
 
+  Eigen::VectorXd tau_high_;
+  double K_;
+  double * Activation_height_;
 };
 
 } // namespace mc_solver

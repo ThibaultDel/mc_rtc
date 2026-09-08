@@ -9,7 +9,7 @@
 namespace mc_tvm
 {
 
-ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double c_res, double delta_t, const Eigen::VectorXd & limit_high, const Eigen::VectorXd & limit_low, bool enforce_high_limit)
+ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double c_res, double delta_t, Eigen::VectorXd limit_high, Eigen::VectorXd limit_low, bool enforce_high_limit)
 : tvm::function::abstract::LinearFunction(robot.mb().nrDof()), robot_(robot), frame_(frame), normal_(normal), lambda_high(lambda_high), lambda_low(lambda_low), c_res_(c_res), delta_t_(delta_t), limit_high_(limit_high), limit_low_(limit_low), enforce_high_limit_(enforce_high_limit)
   , jac_(frame.tvm_frame().rbdJacobian()), coriolis_calculator_(rbd::Coriolis(robot_.mb()))
 {
@@ -50,6 +50,49 @@ ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::
   constraint_right_side_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
 }
 
+ImpulseFunction::ImpulseFunction(const std::shared_ptr<mc_tasks::BSplineTrajectoryTask> & BSplineVel, const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double c_res, double delta_t, Eigen::VectorXd limit_high, Eigen::VectorXd limit_low, bool enforce_high_limit, Eigen::VectorXd tau_high, double K, double * Activation_height)
+: BSplineVel_(BSplineVel),tvm::function::abstract::LinearFunction(robot.mb().nrDof()), robot_(robot), frame_(frame), normal_(normal), lambda_high(lambda_high), lambda_low(lambda_low), c_res_(c_res), delta_t_(delta_t), limit_high_(limit_high), limit_low_(limit_low), enforce_high_limit_(enforce_high_limit)
+  , jac_(frame.tvm_frame().rbdJacobian()), coriolis_calculator_(rbd::Coriolis(robot_.mb())), tau_high_(tau_high), K_(K), Activation_height_(Activation_height)
+{
+  mc_rtc::log::info("test1");
+  assert(frame_->robot().robotIndex() == robot_.robotIndex() && "ImpulseFunction frame must belong to the robot");
+  auto & tvm_robot = robot.tvmRobot();
+  registerUpdates(Update::B, &ImpulseFunction::updateb);
+  registerUpdates(Update::Jacobian, &ImpulseFunction::updateJacobian);
+  addOutputDependency<ImpulseFunction>(Output::B, Update::B);
+  addOutputDependency<ImpulseFunction>(Output::Jacobian, Update::Jacobian);
+  addInputDependency<ImpulseFunction>(Update::Jacobian, tvm_robot, Robot::Output::H);
+  addInputDependency<ImpulseFunction>(Update::Jacobian, tvm_robot, Robot::Output::C);
+  addInputDependency<ImpulseFunction>(Update::B, tvm_robot, Robot::Output::H); // TODO check if needed
+  addVariable(tvm_robot.alphaD(), true);
+
+  linear_constraint_flag=true;
+
+  startParam = tvm_robot.qFloatingBase()->size();
+
+  pre_multiplier_ = Eigen::MatrixXd::Identity(robot.mb().nrDof(), robot.mb().nrDof());
+  pre_multiplier_.block<6, 6>(0, 0).setZero();
+
+  b_ = Eigen::VectorXd::Zero(robot.mb().nrDof());
+
+  tau_imp_pred = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+  tau_imp_act = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+  tau_imp_deriv = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+
+  last_joint_velocities_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+
+  q_d = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+  num_qd = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+  num_qdd = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+  lambda = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+  diff_upper_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+  diff_lower_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+  high_lambda_latch_ = std::vector<bool>(robot_.mb().nrDof(), false);
+  high_lambda_latch_count_ = Eigen::VectorXi::Zero(robot_.mb().nrDof());
+  M_previous = robot_.tvmRobot().H();
+  jac_p =Eigen::MatrixXd::Zero(3,robot_.mb().nrDof());
+  constraint_right_side_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+}
 
 void ImpulseFunction::updateb() // TODO possibly make this function dependent on updateJacobian and use the jacobians etc in class variables rather than local function variables
 {
@@ -74,7 +117,6 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   Eigen::MatrixXd full_world_frame_jacobian_dot(6, robot_.mb().nrDof());
   jac_.fullJacobian(robot_mb, world_frame_jacobian_dot, full_world_frame_jacobian_dot);
   P_n = normal_ * normal_.transpose();
-  //mc_rtc::log::info("normal Pn constraint{}",P_n);
 
   assert(full_world_frame_jacobian.cols() == robot_.mb().nrDof());
 
@@ -85,19 +127,10 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   Eigen::MatrixXd Mi = M.inverse();
   Eigen::MatrixXd M_d_ = C + C.transpose();
 
-  
-  //mc_rtc::log::info("linear jac num {}",(linear_jacobian-jac_p)/delta_t_);
-  //mc_rtc::log::info("linear jac d {}",linear_jacobiand);
-  //mc_rtc::log::info("linear jac diff {}",0.5*(linear_jacobian-jac_p)/delta_t_-linear_jacobiand);
-
   const double me = 1/(normal_.transpose() * linear_jacobian * Mi * linear_jacobian.transpose() * normal_);
   double me_d = -1.f * static_cast<double>(normal_.transpose() * (linear_jacobiand * Mi * linear_jacobian.transpose() -
     linear_jacobian * Mi * M_d_ * Mi * linear_jacobian.transpose() +
     linear_jacobian * Mi * linear_jacobiand.transpose()) * normal_) * me * me;
-  //mc_rtc::log::info("me = {}",me);
-  //mc_rtc::log::info("me_d = {}",me_d);
-  //mc_rtc::log::info("me_dnum = {}",(me-me_previous)/delta_t_);
-  //me_d = (me-me_previous)/delta_t_;
   me_previous=me;
   Eigen::MatrixXd J_dq_new = -((c_res_+1)/delta_t_) * (linear_jacobiand.transpose() * me * P_n * linear_jacobian +
     linear_jacobian.transpose() * me_d * P_n * linear_jacobian +
@@ -245,18 +278,29 @@ void ImpulseFunction::updateJacobian()
 
 void ImpulseFunction::getLambda()
 {
-    double lambda_increment = (lambda_high - lambda_low)/static_cast<double>(lambda_growing_steps);
+  double lambda_increment = (lambda_high - lambda_low)/static_cast<double>(lambda_growing_steps);
+  if(linear_constraint_flag){
+    if(BSplineVel_->eval().norm() < *Activation_height_){
+      double current_pos=*Activation_height_-BSplineVel_->target().translation().norm();
+      limit_high_ = (robot_.tvmRobot().limits().tu - tau_high_) / (*Activation_height_ - *Activation_height_* K_) * (current_pos - *Activation_height_) + tau_high_;
+      limit_low_ = (robot_.tvmRobot().limits().tl + tau_high_)/ (*Activation_height_ - *Activation_height_* K_) * (current_pos - *Activation_height_) - tau_high_;
+    }
+    else if (BSplineVel_->eval().norm() < *Activation_height_ * K_){
+      limit_high_=robot_.tvmRobot().limits().tu;
+      limit_low_=robot_.tvmRobot().limits().tl;
+    }
+  }
+  
+  for (int i = 0; i < robot_.mb().nrDof(); ++i)
+    {
+      diff_upper_(i) = tau_imp_pred(i) - limit_multiplier_*limit_high_(i);//limit multiplier is a way to change the threshold value
+      diff_lower_(i) = tau_imp_pred(i) - limit_multiplier_*limit_low_(i);
+      
 
-for (int i = 0; i < robot_.mb().nrDof(); ++i)
-  {
-    diff_upper_(i) = tau_imp_pred(i) - limit_multiplier_*limit_high_(i);//limit multiplier is a way to change the threshold value
-    diff_lower_(i) = tau_imp_pred(i) - limit_multiplier_*limit_low_(i);
-
-
-    if(diff_upper_(i)>0 || diff_lower_(i)<0)
-      lambda(i)=lambda_high;
-    else 
-      lambda(i)=lambda_low;
+      if(diff_upper_(i)>0 || diff_lower_(i)<0)
+        lambda(i)=lambda_high;
+      else 
+        lambda(i)=lambda_low;
   }
 }
 
