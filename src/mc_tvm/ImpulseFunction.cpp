@@ -282,15 +282,17 @@ void ImpulseFunction::getLambda()
 {
   double lambda_increment = (lambda_high - lambda_low)/static_cast<double>(lambda_growing_steps);
   if(linear_constraint_flag){
-    if(BSplineVel_->eval().norm() < *Activation_height_){
-      double current_pos=*Activation_height_-BSplineVel_->target().translation().norm();
-      limit_high_ = (robot_.tvmRobot().limits().tu - tau_high_) / (*Activation_height_ - *Activation_height_* K_) * (current_pos - *Activation_height_) + tau_high_;
-      limit_low_ = (robot_.tvmRobot().limits().tl + tau_high_)/ (*Activation_height_ - *Activation_height_* K_) * (current_pos - *Activation_height_) - tau_high_;
+    double current_pos = (robot_.frame("Hammer_head").position().translation() - BSplineVel_->target().translation()).norm();
+    if(current_pos < *Activation_height_){
+      double travelled_distance = *Activation_height_ - current_pos;
+      limit_high_ = (robot_.tvmRobot().limits().tu - tau_high_) / (*Activation_height_ - *Activation_height_* K_) * travelled_distance + tau_high_;
+      limit_low_ = (robot_.tvmRobot().limits().tl + tau_high_)/ (*Activation_height_ - *Activation_height_* K_) * travelled_distance - tau_high_;
     }
-    else if (BSplineVel_->eval().norm() < *Activation_height_ * K_){
+    if (current_pos < *Activation_height_ * K_){
       limit_high_=robot_.tvmRobot().limits().tu;
       limit_low_=robot_.tvmRobot().limits().tl;
     }
+    mc_rtc::log::info("high limit joint 22 {}",limit_high_(23));
   }
   
   for (int i = 0; i < robot_.mb().nrDof(); ++i)

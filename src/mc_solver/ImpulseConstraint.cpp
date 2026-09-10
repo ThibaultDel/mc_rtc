@@ -277,11 +277,11 @@ void ImpulseConstraint::add_logs(){
   logger_.addLogEntry("ImpulseConstraint_Elementwise_lambda_high", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionHigh()->EffectiveLambda();});
 
-  logger_.addLogEntry("ImpulseConstraint_Elementwise_torquelimit_lower", this, [&, this]()
+  logger_.addLogEntry("ImpulseConstraint_torquelimit_lower", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->TorqueLowerLimit();});
 
-  logger_.addLogEntry("ImpulseConstraint_Elementwise_torquelimit_higher", this, [&, this]()
-  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->TorqueHigherLimit();});
+  logger_.addLogEntry("ImpulseConstraint_torquelimit_higher", this, [&, this]()
+  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionHigh()->TorqueHigherLimit();});
 
   logger_.addLogEntry("ImpulseConstraint_ImpulsiveTorqueLowerlimit", this, [this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->LowerLimit();});
