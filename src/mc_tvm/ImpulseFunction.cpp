@@ -92,8 +92,8 @@ ImpulseFunction::ImpulseFunction(const std::shared_ptr<mc_tasks::BSplineTrajecto
   M_previous = robot_.tvmRobot().H();
   jac_p =Eigen::MatrixXd::Zero(3,robot_.mb().nrDof());
   constraint_right_side_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
-  mc_rtc::log::info("Distance between the hammer tip and the nail before impact",*Activation_height_);
-  mc_rtc::log::info("Distance when the higher torque limit will be equal to tu or tl",Activation_height_);
+  mc_rtc::log::info("Distance between the hammer tip and the nail before impact: {}", *Activation_height_);
+  mc_rtc::log::info("Distance when the higher torque limit will be equal to tu or tl: {}", *Activation_height_ * K_);
 }
 
 void ImpulseFunction::updateb() // TODO possibly make this function dependent on updateJacobian and use the jacobians etc in class variables rather than local function variables
