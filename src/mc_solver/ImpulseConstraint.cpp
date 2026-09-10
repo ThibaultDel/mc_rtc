@@ -255,15 +255,17 @@ void ImpulseConstraint::removeFromSolverImpl(mc_solver::QPSolver & solver)
   Eigen::VectorXd & ImpulseConstraint::TorqueLowerLimit() {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->TorqueLowerLimit();}
   Eigen::VectorXd & ImpulseConstraint::TorqueHigherLimit() {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->TorqueHigherLimit();}
 
+ImpulseConstraint::~ImpulseConstraint()
+{
+  logger_.removeLogEntries(this);
+}
+
 void ImpulseConstraint::add_logs(){
 
-  logger_.addLogEntry("Hammer tip velocity constraint", [&, this]()
+  logger_.addLogEntry("Hammer tip velocity constraint", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->end_effector_vel;});
 
-  logger_.addLogEntry("ImpulseConstraint_Evaluation_lower", [&, this]()
-  {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->value();});
-
-  logger_.addLogEntry("ImpulseConstraint_Evaluation_lower", [&, this]()
+  logger_.addLogEntry("ImpulseConstraint_Evaluation_lower", this, [&, this]()
   {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->value();});
 
   logger_.addLogEntry("ImpulseConstraint_Evaluation_upper", this, [&, this]()

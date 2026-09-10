@@ -69,6 +69,8 @@ public:
 
   mc_rtc::void_ptr & getConstraint(){return constraint_;}
 
+  ~ImpulseConstraint() override;
+
   const Eigen::VectorXd & LowerLimit();
   const Eigen::VectorXd & UpperLimit();
   Eigen::VectorXd & EffectiveLambda();
