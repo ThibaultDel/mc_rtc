@@ -46,9 +46,9 @@ public:
 
   ImpulseFunction(const std::shared_ptr<mc_tasks::BSplineTrajectoryTask> & BSplineVel, const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal , double lambda_high, double lambda_low, double c_res, double delta_t, Eigen::VectorXd limit_high, Eigen::VectorXd limit_low, bool enforce_high_limit, Eigen::VectorXd tau_high, double K, double * Activation_height );
 
-  Eigen::VectorXd & TorqueLowerLimit(){ return limit_high_; }
+  Eigen::VectorXd & TorqueLowerLimit(){ return limit_low_; }
 
-  Eigen::VectorXd & TorqueHigherLimit(){ return limit_low_; }
+  Eigen::VectorXd & TorqueHigherLimit(){ return limit_high_; }
 
   Eigen::VectorXd & EffectiveLambda(){ return lambda; }
 
