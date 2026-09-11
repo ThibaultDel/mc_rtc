@@ -32,7 +32,7 @@ struct TVMImpulseConstraint
 
   TVMImpulseConstraint(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double delta_t, double c_res, double limit_multiplier/*, int axis*/);
 
-  TVMImpulseConstraint(const std::shared_ptr<mc_tasks::BSplineTrajectoryTask> & BSplineVel, const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double delta_t, double c_res, double limit_multiplier, Eigen::VectorXd tau_high, double K, double * Activation_height/*, int axis*/);
+  TVMImpulseConstraint(const std::shared_ptr<mc_tasks::BSplineTrajectoryTask> & BSplineVel, const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double delta_t, double c_res, double limit_multiplier, double tau_high, double K, double * Activation_height/*, int axis*/);
 
   void addToSolver(mc_solver::TVMQPSolver & solver);
 
@@ -67,7 +67,7 @@ protected:
   Eigen::VectorXd upper;
   Eigen::VectorXd lower;
 
-  Eigen::VectorXd tau_high_;
+  double tau_high_;
   double K_;
   double * Activation_height_;
 };

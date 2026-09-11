@@ -28,7 +28,6 @@ ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::
 
   pre_multiplier_ = Eigen::MatrixXd::Identity(robot.mb().nrDof(), robot.mb().nrDof());
   pre_multiplier_.block<6, 6>(0, 0).setZero();
-
   b_ = Eigen::VectorXd::Zero(robot.mb().nrDof());
 
   tau_imp_pred = Eigen::VectorXd::Zero(robot_.mb().nrDof());
@@ -50,7 +49,7 @@ ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::
   constraint_right_side_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
 }
 
-ImpulseFunction::ImpulseFunction(const std::shared_ptr<mc_tasks::BSplineTrajectoryTask> & BSplineVel, const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double c_res, double delta_t, Eigen::VectorXd limit_high, Eigen::VectorXd limit_low, bool enforce_high_limit, Eigen::VectorXd tau_high, double K, double * Activation_height)
+ImpulseFunction::ImpulseFunction(const std::shared_ptr<mc_tasks::BSplineTrajectoryTask> & BSplineVel, const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double c_res, double delta_t, Eigen::VectorXd limit_high, Eigen::VectorXd limit_low, bool enforce_high_limit, double tau_high, double K, double * Activation_height)
 : BSplineVel_(BSplineVel),tvm::function::abstract::LinearFunction(robot.mb().nrDof()), robot_(robot), frame_(frame), normal_(normal), lambda_high(lambda_high), lambda_low(lambda_low), c_res_(c_res), delta_t_(delta_t), limit_high_(limit_high), limit_low_(limit_low), enforce_high_limit_(enforce_high_limit)
   , jac_(frame.tvm_frame().rbdJacobian()), coriolis_calculator_(rbd::Coriolis(robot_.mb())), tau_high_(tau_high), K_(K), Activation_height_(Activation_height)
 {
@@ -72,6 +71,9 @@ ImpulseFunction::ImpulseFunction(const std::shared_ptr<mc_tasks::BSplineTrajecto
 
   pre_multiplier_ = Eigen::MatrixXd::Identity(robot.mb().nrDof(), robot.mb().nrDof());
   pre_multiplier_.block<6, 6>(0, 0).setZero();
+  pre_multiplier_(30, 30) = 0;
+  pre_multiplier_(31, 31) = 0;
+  pre_multiplier_(29, 29) = 0;
 
   b_ = Eigen::VectorXd::Zero(robot.mb().nrDof());
 
@@ -141,6 +143,12 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   q_d = tvm::dot(robot.q(),1)->value();
 
   b_ = pre_multiplier_ * J_dq_new * q_d;
+
+  if(linear_constraint_flag){
+    double current_pos = (robot_.frame("Hammer_head").position().translation() - BSplineVel_->target().translation()).norm();
+    if(enforce_high_limit_ && *Activation_height_*K_< current_pos && current_pos < *Activation_height_) b_ += pre_multiplier_ * robot_.tvmRobot().limits().tu * ( 1- tau_high_) / (*Activation_height_ - *Activation_height_* K_) * linear_jacobian * q_d;
+    else if (*Activation_height_*K_< current_pos && current_pos < *Activation_height_) b_ += pre_multiplier_ * robot_.tvmRobot().limits().tl * ( 1 - tau_high_)/ (*Activation_height_ - *Activation_height_* K_) * linear_jacobian *q_d;
+  }
  
   // These are now used as constants but if used in a final version should be taken in initialization from input parameters
   double timestep = 0.002;
@@ -285,22 +293,19 @@ void ImpulseFunction::getLambda()
     double current_pos = (robot_.frame("Hammer_head").position().translation() - BSplineVel_->target().translation()).norm();
     if(current_pos < *Activation_height_){
       double travelled_distance = *Activation_height_ - current_pos;
-      limit_high_ = (robot_.tvmRobot().limits().tu - tau_high_) / (*Activation_height_ - *Activation_height_* K_) * travelled_distance + tau_high_;
-      limit_low_ = (robot_.tvmRobot().limits().tl + tau_high_)/ (*Activation_height_ - *Activation_height_* K_) * travelled_distance - tau_high_;
+      limit_high_ = robot_.tvmRobot().limits().tu * (1 - tau_high_) / (*Activation_height_ - *Activation_height_* K_) * travelled_distance + robot_.tvmRobot().limits().tu*tau_high_;
+      limit_low_ = robot_.tvmRobot().limits().tl * (1 - tau_high_)/ (*Activation_height_ - *Activation_height_* K_) * travelled_distance + robot_.tvmRobot().limits().tl*tau_high_;
     }
     if (current_pos < *Activation_height_ * K_){
       limit_high_=robot_.tvmRobot().limits().tu;
       limit_low_=robot_.tvmRobot().limits().tl;
     }
   }
-  
+  diff_upper_ = tau_imp_pred - limit_multiplier_*limit_high_;//limit multiplier is a way to change the threshold value
+  diff_lower_ = tau_imp_pred - limit_multiplier_*limit_low_;
   for (int i = 0; i < robot_.mb().nrDof(); ++i)
     {
-      diff_upper_(i) = tau_imp_pred(i) - limit_multiplier_*limit_high_(i);//limit multiplier is a way to change the threshold value
-      diff_lower_(i) = tau_imp_pred(i) - limit_multiplier_*limit_low_(i);
-      
-
-      if(diff_upper_(i)>0 || diff_lower_(i)<0)
+      if(diff_upper_(i) > 0 || diff_lower_(i) < 0)
         lambda(i)=lambda_high;
       else 
         lambda(i)=lambda_low;

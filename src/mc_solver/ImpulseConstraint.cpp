@@ -45,7 +45,7 @@ mc_tvm::ImpulseFunctionPtr initialize_imp_cstr(const std::shared_ptr<mc_tasks::B
                                      Eigen::VectorXd limit_high,
                                      Eigen::VectorXd limit_low,
                                      bool enforce_high,
-                                     Eigen::VectorXd tau_high,
+                                     double tau_high,
                                      double K,
                                      double * Activation_height
                                     )
@@ -86,7 +86,7 @@ TVMImpulseConstraint::TVMImpulseConstraint(const std::shared_ptr<mc_tasks::BSpli
                                                  double delta_t,
                                                  double c_res,
                                                  double limit_multiplier,
-                                                 Eigen::VectorXd tau_high,
+                                                 double tau_high,
                                                  double K,
                                                  double * Activation_height
                                                 )
@@ -148,7 +148,7 @@ static mc_rtc::void_ptr initialize_tvm(const mc_rbdyn::Robot & robot, const mc_r
   return mc_rtc::make_void_ptr<TVMImpulseConstraint>(robot, frame, normal, lambda_high, lambda_low, delta_t, c_res, limit_multiplier);
 }
 
-static mc_rtc::void_ptr initialize_tvm(const std::shared_ptr<mc_tasks::BSplineTrajectoryTask> & BSplineVel, const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double delta_t, double c_res, double limit_multiplier, Eigen::VectorXd tau_high, double K, double * Activation_height)
+static mc_rtc::void_ptr initialize_tvm(const std::shared_ptr<mc_tasks::BSplineTrajectoryTask> & BSplineVel, const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double delta_t, double c_res, double limit_multiplier, double tau_high, double K, double * Activation_height)
 {
   return mc_rtc::make_void_ptr<TVMImpulseConstraint>(BSplineVel, robot, frame, normal, lambda_high, lambda_low, delta_t, c_res, limit_multiplier, tau_high, K, Activation_height);
 }
@@ -187,7 +187,7 @@ static mc_rtc::void_ptr initialize(QPSolver::Backend backend,
                                    double delta_t,
                                    double c_res,
                                    double limit_multiplier,
-                                   Eigen::VectorXd tau_high,
+                                   double tau_high,
                                    double K,
                                    double * Activation_heigt)
 {
@@ -209,7 +209,7 @@ ImpulseConstraint::ImpulseConstraint(const mc_rbdyn::Robots & robots, unsigned i
   add_logs();
 }
 
-ImpulseConstraint::ImpulseConstraint(std::shared_ptr<mc_tasks::BSplineTrajectoryTask> BSplineVel, const mc_rbdyn::Robots & robots, unsigned int robotIndex, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double delta_t, double c_res, double limit_multiplier, mc_rtc::Logger & logger, Eigen::VectorXd tau_high, double K, double * Activation_height)
+ImpulseConstraint::ImpulseConstraint(std::shared_ptr<mc_tasks::BSplineTrajectoryTask> BSplineVel, const mc_rbdyn::Robots & robots, unsigned int robotIndex, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double delta_t, double c_res, double limit_multiplier, mc_rtc::Logger & logger, double tau_high, double K, double * Activation_height)
 : constraint_(initialize(backend_, BSplineVel, robots, robotIndex, frame, normal, lambda_high, lambda_low, delta_t, c_res, limit_multiplier, tau_high, K, Activation_height)), logger_(logger)
 {
   add_logs();

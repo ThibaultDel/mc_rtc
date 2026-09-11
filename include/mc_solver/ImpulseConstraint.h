@@ -63,7 +63,7 @@ public:
                         double limit_multiplier,
                         // int axis,
                         mc_rtc::Logger & logger,
-                        Eigen::VectorXd tau_high,
+                        double tau_high,
                         double K,
                         double * Activation_height);
 

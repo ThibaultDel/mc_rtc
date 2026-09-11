@@ -44,7 +44,7 @@ public:
   /** Construct the equation of motion for a given robot */
   ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal , double lambda_high, double lambda_low, double c_res, double delta_t, Eigen::VectorXd limit_high, Eigen::VectorXd limit_low, bool enforce_high_limit);
 
-  ImpulseFunction(const std::shared_ptr<mc_tasks::BSplineTrajectoryTask> & BSplineVel, const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal , double lambda_high, double lambda_low, double c_res, double delta_t, Eigen::VectorXd limit_high, Eigen::VectorXd limit_low, bool enforce_high_limit, Eigen::VectorXd tau_high, double K, double * Activation_height );
+  ImpulseFunction(const std::shared_ptr<mc_tasks::BSplineTrajectoryTask> & BSplineVel, const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal , double lambda_high, double lambda_low, double c_res, double delta_t, Eigen::VectorXd limit_high, Eigen::VectorXd limit_low, bool enforce_high_limit, double tau_high, double K, double * Activation_height );
 
   Eigen::VectorXd & TorqueLowerLimit(){ return limit_low_; }
 
@@ -112,7 +112,7 @@ protected:
 
   double * Activation_height_;
   double K_;
-  Eigen::VectorXd tau_high_;
+  double tau_high_;
 
   Eigen::MatrixXd J_ddq;
 
