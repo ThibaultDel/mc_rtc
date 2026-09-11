@@ -292,7 +292,6 @@ void ImpulseFunction::getLambda()
       limit_high_=robot_.tvmRobot().limits().tu;
       limit_low_=robot_.tvmRobot().limits().tl;
     }
-    mc_rtc::log::info("high limit joint 22 {}",limit_high_(23));
   }
   
   for (int i = 0; i < robot_.mb().nrDof(); ++i)
