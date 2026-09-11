@@ -71,9 +71,9 @@ ImpulseFunction::ImpulseFunction(const std::shared_ptr<mc_tasks::BSplineTrajecto
 
   pre_multiplier_ = Eigen::MatrixXd::Identity(robot.mb().nrDof(), robot.mb().nrDof());
   pre_multiplier_.block<6, 6>(0, 0).setZero();
-  pre_multiplier_(30, 30) = 0;
-  pre_multiplier_(31, 31) = 0;
-  pre_multiplier_(29, 29) = 0;
+  // pre_multiplier_(30, 30) = 0;
+  // pre_multiplier_(31, 31) = 0;
+  // pre_multiplier_(29, 29) = 0;
 
   b_ = Eigen::VectorXd::Zero(robot.mb().nrDof());
 
@@ -145,9 +145,19 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   b_ = pre_multiplier_ * J_dq_new * q_d;
 
   if(linear_constraint_flag){
-    double current_pos = (robot_.frame("Hammer_head").position().translation() - BSplineVel_->target().translation()).norm();
-    if(enforce_high_limit_ && *Activation_height_*K_< current_pos && current_pos < *Activation_height_) b_ += pre_multiplier_ * robot_.tvmRobot().limits().tu * ( 1- tau_high_) / (*Activation_height_ - *Activation_height_* K_) * linear_jacobian * q_d;
-    else if (*Activation_height_*K_< current_pos && current_pos < *Activation_height_) b_ += pre_multiplier_ * robot_.tvmRobot().limits().tl * ( 1 - tau_high_)/ (*Activation_height_ - *Activation_height_* K_) * linear_jacobian *q_d;
+    Eigen::Vector3d diff_pos = robot_.frame("Hammer_head").position().translation() - BSplineVel_->target().translation();
+    double current_pos = diff_pos.norm();
+    if(*Activation_height_ * K_ < current_pos && current_pos < *Activation_height_){
+      Eigen::Vector3d hammer_linear_vel = linear_jacobian * q_d;
+      double d_dot = (current_pos > 1e-6) ? (diff_pos.dot(hammer_linear_vel) / current_pos) : 0.0;
+      double d_limit_rate = (1.0 - tau_high_) / (*Activation_height_ - *Activation_height_ * K_) * d_dot;
+      if(enforce_high_limit_){
+        b_ += pre_multiplier_ * robot_.tvmRobot().limits().tu * d_limit_rate;
+      }
+      else{
+        b_ += pre_multiplier_ * robot_.tvmRobot().limits().tl * d_limit_rate;
+      }
+    }
   }
  
   // These are now used as constants but if used in a final version should be taken in initialization from input parameters
@@ -225,8 +235,8 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
         constraint_right_side_(i) = -1.0*lambda(i)* /*std::sqrt*/(diff_upper_(i));
       } else if (diff_lower_(i) <= 0)
       {
-        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.0*diff_upper_(i));
-        constraint_right_side_(i) = -1.0*lambda(i)*diff_upper_(i);
+        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.0*diff_lower_(i));
+        constraint_right_side_(i) = -1.0*lambda(i)*diff_lower_(i);
       }else
       {
         b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.f*diff_upper_(i));
@@ -243,8 +253,8 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
         constraint_right_side_(i) = -1.0*lambda(i)* /*std::sqrt*/(diff_lower_(i));
       } else if (diff_upper_(i) >= 0)
       {
-        b_(i) += /*std::sq rt*/(lambda(i))* /*std::sqrt*/(diff_lower_(i));
-        constraint_right_side_(i) = -1.0*lambda(i)*diff_lower_(i);
+        b_(i) += /*std::sqrt*/(lambda(i))* /*std::sqrt*/(diff_upper_(i));
+        constraint_right_side_(i) = -1.0*lambda(i)*diff_upper_(i);
       } else
       {
         b_(i) += /*std::sqrt*/(lambda(i))* /*std::sqrt*/(diff_lower_(i));
