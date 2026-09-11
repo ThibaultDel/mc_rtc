@@ -24,7 +24,7 @@ ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::
   addInputDependency<ImpulseFunction>(Update::B, tvm_robot, Robot::Output::H); // TODO check if needed
   addVariable(tvm_robot.alphaD(), true);
 
-  startParam = tvm_robot.qFloatingBase()->size();
+  startParam = tvm_robot.qFloatingBase()->space().tSize();
 
   pre_multiplier_ = Eigen::MatrixXd::Identity(robot.mb().nrDof(), robot.mb().nrDof());
   pre_multiplier_.block<6, 6>(0, 0).setZero();
@@ -67,7 +67,7 @@ ImpulseFunction::ImpulseFunction(const std::shared_ptr<mc_tasks::BSplineTrajecto
 
   linear_constraint_flag=true;
 
-  startParam = tvm_robot.qFloatingBase()->size();
+  startParam = tvm_robot.qFloatingBase()->space().tSize();
 
   pre_multiplier_ = Eigen::MatrixXd::Identity(robot.mb().nrDof(), robot.mb().nrDof());
   pre_multiplier_.block<6, 6>(0, 0).setZero();
@@ -313,12 +313,16 @@ void ImpulseFunction::getLambda()
   }
   diff_upper_ = tau_imp_pred - limit_multiplier_*limit_high_;//limit multiplier is a way to change the threshold value
   diff_lower_ = tau_imp_pred - limit_multiplier_*limit_low_;
-  for (int i = 0; i < robot_.mb().nrDof(); ++i)
-    {
-      if(diff_upper_(i) > 0 || diff_lower_(i) < 0)
-        lambda(i)=lambda_high;
-      else 
-        lambda(i)=lambda_low;
+  for (int i = 0; i < startParam; ++i)
+  {
+    lambda(i) = lambda_low;
+  }
+  for (int i = startParam; i < robot_.mb().nrDof(); ++i)
+  {
+    if(diff_upper_(i) > 0 || diff_lower_(i) < 0)
+      lambda(i)=lambda_high;
+    else 
+      lambda(i)=lambda_low;
   }
 }
 
