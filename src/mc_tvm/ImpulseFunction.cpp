@@ -229,36 +229,28 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   {
     for (int i = startParam; i < b_.size(); ++i)
     {
-      if (diff_upper_(i) >= 0 /*|| diff2 <= 0*/)
+      if (diff_upper_(i) >= 0)
       {
-        b_(i) += /*std::sqrt*/(lambda(i))* /*std::sqrt*/(diff_upper_(i));
-        constraint_right_side_(i) = -1.0*lambda(i)* /*std::sqrt*/(diff_upper_(i));
-      } else if (diff_lower_(i) <= 0)
+        b_(i) += lambda(i) * diff_upper_(i);
+        constraint_right_side_(i) = -1.0 * lambda(i) * diff_upper_(i);
+      } else
       {
-        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.0*diff_lower_(i));
-        constraint_right_side_(i) = -1.0*lambda(i)*diff_lower_(i);
-      }else
-      {
-        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.f*diff_upper_(i));
-        constraint_right_side_(i) = -1.0*lambda(i)*diff_upper_(i);
+        b_(i) -= lambda(i) * (-diff_upper_(i));
+        constraint_right_side_(i) = -1.0 * lambda(i) * diff_upper_(i);
       }
     }
   } else
   {
     for (int i = startParam; i < b_.size(); ++i)
     {
-      if (diff_lower_(i) < 0/* || diff2 >= 0*/)
+      if (diff_lower_(i) <= 0)
       {
-        b_(i) -= /*std::sqrt*/(lambda(i))* /*std::sqrt*/(-1.0*diff_lower_(i));
-        constraint_right_side_(i) = -1.0*lambda(i)* /*std::sqrt*/(diff_lower_(i));
-      } else if (diff_upper_(i) >= 0)
-      {
-        b_(i) += /*std::sqrt*/(lambda(i))* /*std::sqrt*/(diff_upper_(i));
-        constraint_right_side_(i) = -1.0*lambda(i)*diff_upper_(i);
+        b_(i) -= lambda(i) * (-diff_lower_(i));
+        constraint_right_side_(i) = -1.0 * lambda(i) * diff_lower_(i);
       } else
       {
-        b_(i) += /*std::sqrt*/(lambda(i))* /*std::sqrt*/(diff_lower_(i));
-        constraint_right_side_(i) = -1.0*lambda(i)*diff_lower_(i);
+        b_(i) += lambda(i) * diff_lower_(i);
+        constraint_right_side_(i) = -1.0 * lambda(i) * diff_lower_(i);
       }
     }
   }
