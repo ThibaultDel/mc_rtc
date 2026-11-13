@@ -111,10 +111,16 @@ protected:
   /*! \brief Sets the curve target pose
    * \param target Target pose for the curve
    */
-  void targetPos(const Eigen::Vector3d & target);
+  inline void targetPos(const Eigen::Vector3d & target)
+  {
+    bspline.target(target);
+  }
 
   /** \brief Returns the curves target position */
-  const Eigen::Vector3d & targetPos() const;
+  inline const Eigen::Vector3d & targetPos() const
+  {
+    return bspline.target();
+  }
 
 protected:
   mc_trajectory::BSpline bspline;

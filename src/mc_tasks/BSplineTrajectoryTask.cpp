@@ -79,16 +79,6 @@ void BSplineTrajectoryTask::posWaypoints(const BSpline::waypoints_t & posWp)
   bspline.waypoints(posWp);
 }
 
-void BSplineTrajectoryTask::targetPos(const Eigen::Vector3d & target)
-{
-  bspline.target(target);
-}
-
-const Eigen::Vector3d & BSplineTrajectoryTask::targetPos() const
-{
-  return bspline.target();
-}
-
 void BSplineTrajectoryTask::addToGUI(mc_rtc::gui::StateBuilder & gui)
 {
   SplineTrajectoryBase::addToGUI(gui);
