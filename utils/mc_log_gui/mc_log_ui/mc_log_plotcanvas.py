@@ -1280,7 +1280,27 @@ class PlotCanvasWithToolbar(PlotFigure, QWidget):
         QWidget.__init__(self, parent)
 
         self.canvas.mpl_connect("draw_event", self.on_draw)
+        self.canvas.mpl_connect("motion_notify_event", self.on_hover)
+        self.canvas.mpl_connect("axes_leave_event", self.on_axes_leave)
+        self.canvas.mpl_connect("scroll_event", self.on_scroll)
         self.toolbar = NavigationToolbar(self.canvas, self)
+
+        self._hover_tooltip = QtWidgets.QLabel(self.canvas)
+        self._hover_tooltip.setStyleSheet(
+            "QLabel { background-color: rgba(40, 40, 40, 220); color: white;"
+            " border: 1px solid #888; border-radius: 4px; padding: 4px 6px;"
+            " font-size: 11px; }"
+        )
+        self._hover_tooltip.setAlignment(QtCore.Qt.AlignLeft)
+        self._hover_tooltip.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
+        self._hover_tooltip.hide()
+        self._hover_pick_radius = 8  # pixels
+
+        # Zoom state: independent of the user-facing lock buttons.
+        # None means no zoom override is active for that axis.
+        self._zoom_x_limits = None
+        self._zoom_y1_limits = None
+        self._zoom_y2_limits = None
 
         self.layout = QVBoxLayout(self)
         self.layout.addWidget(self.canvas)
@@ -1394,6 +1414,9 @@ class PlotCanvasWithToolbar(PlotFigure, QWidget):
             self.startAnimation()
 
     def update_x(self):
+        self._zoom_x_limits = None
+        self._zoom_y1_limits = None
+        self._zoom_y2_limits = None
         self._axes(lambda a: a.update_x(self.data[self.x_data]))
         if self._polygons():
             self._polygons().update_x(self.data[self.x_data])
@@ -1551,19 +1574,298 @@ class PlotCanvasWithToolbar(PlotFigure, QWidget):
     def axesDialog(self):
         SimpleAxesDialog(self).exec_()
 
+    def on_axes_leave(self, event):
+        """Hide tooltip and marker when the cursor leaves the plot area."""
+        self._hover_tooltip.hide()
+        self._clear_hover_marker()
+
+    def _get_data_bounds(self):
+        """Return (x_bounds, y1_bounds, y2_bounds) as (min, max) tuples or None.
+        These are the full extents of the actual plotted data, used to clamp zoom-out.
+        A 1 % margin is added on each side to match the padding PlotFigure.draw() and
+        setMargin() apply to the initial auto-fit view."""
+
+        _MARGIN = 0.01  # must match the 0.01 used in PlotFigure.draw() / setMargin()
+
+        def axis_bounds(plot_axis, data_idx):
+            lo, hi = float("inf"), float("-inf")
+            for data in plot_axis.data.values():
+                arr = data[data_idx]
+                if arr is None:
+                    continue
+                try:
+                    finite = arr[np.isfinite(arr)]
+                    if len(finite):
+                        lo = min(lo, float(finite.min()))
+                        hi = max(hi, float(finite.max()))
+                except Exception:
+                    pass
+            if lo > hi:
+                return None
+            pad = _MARGIN * (hi - lo)
+            return (lo - pad, hi + pad)
+
+        x_bounds = None
+        if self._left() and len(self._left()):
+            x_bounds = axis_bounds(self._left(), 0)
+        if x_bounds is None and self._right() and len(self._right()):
+            x_bounds = axis_bounds(self._right(), 0)
+        # Merge x bounds from both axes (they share x)
+        if self._right() and len(self._right()):
+            rb = axis_bounds(self._right(), 0)
+            if rb is not None:
+                x_bounds = (
+                    min(x_bounds[0], rb[0]) if x_bounds else rb[0],
+                    max(x_bounds[1], rb[1]) if x_bounds else rb[1],
+                ) if x_bounds else rb
+
+        y1_bounds = axis_bounds(self._left(), 1) if self._left() and len(self._left()) else None
+        y2_bounds = None
+        if not self._3D and self._right() and len(self._right()):
+            y2_bounds = axis_bounds(self._right(), 1)
+
+        return x_bounds, y1_bounds, y2_bounds
+
+    def on_scroll(self, event):
+        """Zoom in/out with the scroll wheel, respecting locked axes and data bounds.
+        Uses a separate zoom-limit state so the user-facing Lock buttons are never touched."""
+        if event.inaxes is None or self._3D:
+            return
+
+        # scroll up (step > 0) → zoom in; scroll down → zoom out
+        zoom = 0.85 ** event.step  # < 1 means zoom in when step > 0
+
+        x_bounds, y1_bounds, y2_bounds = self._get_data_bounds()
+
+        def zoomed(cur_lo, cur_hi, focus, factor, bounds):
+            """Zoom [cur_lo, cur_hi] by factor around focus, clamped to bounds."""
+            new_lo = focus - (focus - cur_lo) * factor
+            new_hi = focus + (cur_hi - focus) * factor
+            if bounds is not None:
+                b_lo, b_hi = bounds
+                b_range = b_hi - b_lo
+                # Clamp zoom-out: never exceed the full data range
+                new_lo = max(new_lo, b_lo)
+                new_hi = min(new_hi, b_hi)
+                # Clamp zoom-in: prevent collapsing to a point
+                min_range = b_range * 1e-5 if b_range > 0 else 1e-9
+                if new_hi - new_lo < min_range:
+                    mid = (new_lo + new_hi) / 2.0
+                    new_lo = mid - min_range / 2.0
+                    new_hi = mid + min_range / 2.0
+            return [new_lo, new_hi]
+
+        ax_left = self._left().axis()
+
+        # ── X axis (skip if user has it locked) ──────────────────────────────
+        if not self.x_locked.isChecked():
+            cur = self._zoom_x_limits if self._zoom_x_limits is not None else list(ax_left.get_xlim())
+            x_focus = event.xdata if event.xdata is not None else (cur[0] + cur[1]) / 2.0
+            self._zoom_x_limits = zoomed(cur[0], cur[1], x_focus, zoom, x_bounds)
+
+        # ── Y1 axis (skip if user has it locked) ─────────────────────────────
+        if self._left() and len(self._left()) and not self.y1_locked.isChecked():
+            if event.inaxes is ax_left:
+                y1_focus = event.ydata
+            else:
+                try:
+                    disp = self._right().axis().transData.transform((event.xdata or 0, event.ydata or 0))
+                    y1_focus = ax_left.transData.inverted().transform(disp)[1]
+                except Exception:
+                    y1_focus = None
+            cur = self._zoom_y1_limits if self._zoom_y1_limits is not None else list(ax_left.get_ylim())
+            focus = y1_focus if y1_focus is not None else (cur[0] + cur[1]) / 2.0
+            self._zoom_y1_limits = zoomed(cur[0], cur[1], focus, zoom, y1_bounds)
+
+        # ── Y2 axis (skip if user has it locked) ─────────────────────────────
+        if not self._3D and self._right() and len(self._right()) and not self.y2_locked.isChecked():
+            ax_right = self._right().axis()
+            if event.inaxes is ax_right:
+                y2_focus = event.ydata
+            else:
+                try:
+                    disp = ax_left.transData.transform((event.xdata or 0, event.ydata or 0))
+                    y2_focus = ax_right.transData.inverted().transform(disp)[1]
+                except Exception:
+                    y2_focus = None
+            cur = self._zoom_y2_limits if self._zoom_y2_limits is not None else list(ax_right.get_ylim())
+            focus = y2_focus if y2_focus is not None else (cur[0] + cur[1]) / 2.0
+            self._zoom_y2_limits = zoomed(cur[0], cur[1], focus, zoom, y2_bounds)
+
+        self.draw()
+
+    @staticmethod
+    def _point_to_segment_dist(px, py, x1, y1, x2, y2):
+        """Return (distance, t) where t in [0,1] is the parameter along segment (x1,y1)-(x2,y2)
+        closest to point (px, py). All coordinates are in pixel space."""
+        dx, dy = x2 - x1, y2 - y1
+        seg_len_sq = dx * dx + dy * dy
+        if seg_len_sq < 1e-12:
+            t = 0.0
+        else:
+            t = max(0.0, min(1.0, ((px - x1) * dx + (py - y1) * dy) / seg_len_sq))
+        cx = x1 + t * dx
+        cy = y1 + t * dy
+        dist = math.hypot(px - cx, py - cy)
+        return dist, t
+
+    def on_hover(self, event):
+        """Show a tooltip with parameter name and x/y value when hovering near a plot line."""
+        if event.inaxes is None or self._3D:
+            self._hover_tooltip.hide()
+            self._clear_hover_marker()
+            return
+
+        # Collect all axes we need to check
+        axes_to_check = []
+        if self._left() is not None and len(self._left()):
+            axes_to_check.append((self._left(), "y1"))
+        if self._right() is not None and len(self._right()):
+            axes_to_check.append((self._right(), "y2"))
+
+        best_dist = self._hover_pick_radius
+        best_label = None
+        best_x = None
+        best_y = None
+        best_ax = None
+        best_color = None
+
+        for plot_axis, side in axes_to_check:
+            ax = plot_axis.axis()
+            for label, line in plot_axis.plots.items():
+                try:
+                    xy_data = line.get_xydata()
+                except Exception:
+                    continue
+                if len(xy_data) < 1:
+                    continue
+                # Filter out NaN rows
+                valid = np.isfinite(xy_data[:, 0]) & np.isfinite(xy_data[:, 1])
+                xy_valid = xy_data[valid]
+                if len(xy_valid) == 0:
+                    continue
+                # Transform data coords → display (pixel) coords
+                try:
+                    xy_pixels = ax.transData.transform(xy_valid)
+                except Exception:
+                    continue
+
+                mx, my = event.x, event.y
+
+                # Check every segment between consecutive valid points
+                for i in range(len(xy_pixels) - 1):
+                    x1p, y1p = xy_pixels[i]
+                    x2p, y2p = xy_pixels[i + 1]
+                    dist, t = self._point_to_segment_dist(mx, my, x1p, y1p, x2p, y2p)
+                    if dist < best_dist:
+                        best_dist = dist
+                        best_label = label
+                        # Interpolate data-space coordinates along the segment
+                        best_x = xy_valid[i, 0] * (1 - t) + xy_valid[i + 1, 0] * t
+                        best_y = xy_valid[i, 1] * (1 - t) + xy_valid[i + 1, 1] * t
+                        best_ax = ax
+                        best_color = line.get_color()
+
+                # Also check the last point in isolation (single-point lines)
+                if len(xy_pixels) == 1:
+                    dist = math.hypot(xy_pixels[0, 0] - mx, xy_pixels[0, 1] - my)
+                    if dist < best_dist:
+                        best_dist = dist
+                        best_label = label
+                        best_x = xy_valid[0, 0]
+                        best_y = xy_valid[0, 1]
+                        best_ax = ax
+                        best_color = line.get_color()
+
+        if best_label is None:
+            self._hover_tooltip.hide()
+            self._clear_hover_marker()
+            return
+
+        # Draw / update the marker dot
+        self._update_hover_marker(best_ax, best_x, best_y, best_color)
+
+        # Format tooltip text
+        tooltip_text = "<b>{}</b><br/>x: {:.4g}<br/>y: {:.4g}".format(
+            best_label, best_x, best_y
+        )
+        self._hover_tooltip.setText(tooltip_text)
+        self._hover_tooltip.setTextFormat(QtCore.Qt.RichText)
+        self._hover_tooltip.adjustSize()
+
+        # Position tooltip near cursor, keeping it inside the canvas
+        canvas_w = self.canvas.width()
+        canvas_h = self.canvas.height()
+        tip_w = self._hover_tooltip.width()
+        tip_h = self._hover_tooltip.height()
+        # event.x / event.y are in display coords (y flipped vs widget coords)
+        wx = int(event.x) + 12
+        wy = canvas_h - int(event.y) - tip_h - 8
+        if wx + tip_w > canvas_w:
+            wx = int(event.x) - tip_w - 12
+        if wy < 0:
+            wy = canvas_h - int(event.y) + 8
+        self._hover_tooltip.move(wx, wy)
+        self._hover_tooltip.show()
+        self._hover_tooltip.raise_()
+
+    def _update_hover_marker(self, ax, x, y, color):
+        """Draw or move the hover marker dot on the given axes."""
+        marker = getattr(self, "_hover_marker", None)
+        if marker is not None and marker.axes is ax:
+            marker.set_data([x], [y])
+        else:
+            self._clear_hover_marker()
+            (marker,) = ax.plot(
+                [x],
+                [y],
+                marker="o",
+                markersize=8,
+                color=color,
+                markeredgecolor="white",
+                markeredgewidth=1.5,
+                linestyle="None",
+                zorder=10,
+                animated=False,
+            )
+            self._hover_marker = marker
+        self.canvas.draw_idle()
+
+    def _clear_hover_marker(self):
+        """Remove the hover marker dot if present."""
+        marker = getattr(self, "_hover_marker", None)
+        if marker is not None:
+            try:
+                marker.remove()
+            except Exception:
+                pass
+            self._hover_marker = None
+            self.canvas.draw_idle()
+
     def on_draw(self, event):
         if self.x_limits is not None:
             self.x_limits = self._left().axis().get_xlim()
+        elif self._zoom_x_limits is not None:
+            self._zoom_x_limits = list(self._left().axis().get_xlim())
         if self.y1_limits is not None:
             self.y1_limits = self._left().axis().get_ylim()
+        elif self._zoom_y1_limits is not None:
+            self._zoom_y1_limits = list(self._left().axis().get_ylim())
         if self.y2_limits is not None:
             if self._3D:
                 self.y2_limits = self._left().axis().get_zlim()
             else:
                 self.y2_limits = self._right().axis().get_ylim()
+        elif not self._3D and self._zoom_y2_limits is not None:
+            self._zoom_y2_limits = list(self._right().axis().get_ylim())
 
     def draw(self):
-        PlotFigure.draw(self, self.x_limits, self.y1_limits, self.y2_limits)
+        # Merge: user lock limits take priority, zoom limits act as soft override,
+        # None falls through to PlotFigure auto-fit.
+        x_lim = self.x_limits if self.x_limits is not None else self._zoom_x_limits
+        y1_lim = self.y1_limits if self.y1_limits is not None else self._zoom_y1_limits
+        y2_lim = self.y2_limits if self.y2_limits is not None else self._zoom_y2_limits
+        PlotFigure.draw(self, x_lim, y1_lim, y2_lim)
         self.canvas.draw()
 
     def _y_lock_changed(self, name, cbox, get_lim):
@@ -1579,6 +1881,7 @@ class PlotCanvasWithToolbar(PlotFigure, QWidget):
             "X", self.x_locked, self._left().axis().get_xlim
         )
         if self.x_limits is None:
+            self._zoom_x_limits = None  # clear scroll-zoom so auto-fit resumes
             self.draw()
 
     def y1_locked_changed(self, status):
@@ -1586,6 +1889,7 @@ class PlotCanvasWithToolbar(PlotFigure, QWidget):
             "Y1", self.y1_locked, self._left().axis().get_ylim
         )
         if self.y1_limits is None:
+            self._zoom_y1_limits = None
             self.draw()
 
     def y2_locked_changed(self, status):
@@ -1598,6 +1902,7 @@ class PlotCanvasWithToolbar(PlotFigure, QWidget):
                 "Y2", self.y2_locked, self._right().axis().get_ylim
             )
         if self.y2_limits is None:
+            self._zoom_y2_limits = None
             self.draw()
 
     def align_y1_y2_released(self):
