@@ -24,10 +24,13 @@ ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::
   addInputDependency<ImpulseFunction>(Update::B, tvm_robot, Robot::Output::H); // TODO check if needed
   addVariable(tvm_robot.alphaD(), true);
 
-  startParam = tvm_robot.qFloatingBase()->space().tSize();
+  startParam = tvm_robot.qFloatingBase() ? tvm_robot.qFloatingBase()->space().tSize() : 0;
 
   pre_multiplier_ = Eigen::MatrixXd::Identity(robot.mb().nrDof(), robot.mb().nrDof());
-  pre_multiplier_.block<6, 6>(0, 0).setZero();
+  if(startParam > 0)
+  {
+    pre_multiplier_.block(0, 0, startParam, startParam).setZero();
+  }
   b_ = Eigen::VectorXd::Zero(robot.mb().nrDof());
 
   tau_imp_pred = Eigen::VectorXd::Zero(robot_.mb().nrDof());
@@ -82,10 +85,13 @@ ImpulseFunction::ImpulseFunction(const std::shared_ptr<mc_tasks::BSplineTrajecto
 
   linear_constraint_flag=true;
 
-  startParam = tvm_robot.qFloatingBase()->space().tSize();
+  startParam = tvm_robot.qFloatingBase() ? tvm_robot.qFloatingBase()->space().tSize() : 0;
 
   pre_multiplier_ = Eigen::MatrixXd::Identity(robot.mb().nrDof(), robot.mb().nrDof());
-  pre_multiplier_.block<6, 6>(0, 0).setZero();
+  if(startParam > 0)
+  {
+    pre_multiplier_.block(0, 0, startParam, startParam).setZero();
+  }
   // pre_multiplier_(30, 30) = 0;
   // pre_multiplier_(31, 31) = 0;
   // pre_multiplier_(29, 29) = 0;
@@ -180,49 +186,22 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   // These are now used as constants but if used in a final version should be taken in initialization from input parameters
   double timestep = 0.005;
 
-  auto current_vel = robot_.encoderVelocities();
-
-  num_qd(0) = 0.0;
-  num_qd(1) = 0.0;
-  num_qd(2) = 0.0;
-  num_qd(3) = 0.0;
-  num_qd(4) = 0.0;
-  num_qd(5) = 0.0;
-  num_qd(6) = current_vel.at(6);//LCY
-  num_qd(7) = current_vel.at(7);//LCR
-  num_qd(8) = current_vel.at(8);//LCP
-  num_qd(9) = current_vel.at(9);//LKP
-  num_qd(10) = current_vel.at(10);//LAP
-  num_qd(11) = current_vel.at(11);//LAR
-  num_qd(12) = current_vel.at(0);//RCY
-  num_qd(13) = current_vel.at(1);//RCR
-  num_qd(14) = current_vel.at(2);//RCP
-  num_qd(15) = current_vel.at(3);//RKP
-  num_qd(16) = current_vel.at(4);//RAP
-  num_qd(17) = current_vel.at(5);//RAR
-  num_qd(18) = current_vel.at(12);//WP
-  num_qd(19) = current_vel.at(13);//WR
-  num_qd(20) = current_vel.at(14);//WY
-  num_qd(21) = current_vel.at(15);//HY
-  num_qd(22) = current_vel.at(16);//HP
-  num_qd(23) = current_vel.at(35);//LSC
-  num_qd(24) = current_vel.at(36);//LSP
-  num_qd(25) = current_vel.at(37);//LSR
-  num_qd(26) = current_vel.at(38);//LSY
-  num_qd(27) = current_vel.at(39);//LEP
-  num_qd(28) = current_vel.at(40);//LWRY
-  num_qd(29) = current_vel.at(41);//LWRR
-  num_qd(30) = current_vel.at(42);//LWRP
-  num_qd(31) = current_vel.at(43);//LHDY
-  num_qd(32) = current_vel.at(17);//RSC
-  num_qd(33) = current_vel.at(18);//RSP
-  num_qd(34) = current_vel.at(19);//RSR
-  num_qd(35) = current_vel.at(20);//RSY
-  num_qd(36) = current_vel.at(21);//REP
-  num_qd(37) = current_vel.at(22);//RWRY
-  num_qd(38) = current_vel.at(23);//RWRR
-  num_qd(39) = current_vel.at(24);//RWRP
-  num_qd(40) = current_vel.at(25);//RHDY
+  // Populate joint velocities generically from encoder velocities
+  num_qd.setZero();
+  const auto & current_vel = robot_.encoderVelocities();
+  for(size_t i = 0; i < current_vel.size(); ++i)
+  {
+    const auto & jname = robot_.refJointOrder()[i];
+    if(robot_.hasJoint(jname))
+    {
+      auto jIndex = robot_.jointIndexByName(jname);
+      int dofIndex = robot_.mb().jointPosInDof(static_cast<int>(jIndex));
+      if(dofIndex >= 0 && dofIndex < num_qd.size())
+      {
+        num_qd(dofIndex) = current_vel[i];
+      }
+    }
+  }
 
   // Take the numerical derivative of the joint velocities
   for (int i = 0; i < robot_.mb().nrDof(); ++i)
