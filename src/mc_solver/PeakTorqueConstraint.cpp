@@ -196,7 +196,7 @@ struct PeakTorqueConstraint::Impl
         in = input_snapshot_;
       }
 
-      if (in.has_data && in.v_pre.size() == total_dofs_ && in.M_robot.rows() == total_dofs_ && in.J_c.rows() > 0)
+      if (in.has_data && in.v_pre.size() == total_dofs_ && in.M_robot.rows() == total_dofs_)
       {
         try
         {

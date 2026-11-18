@@ -28,6 +28,29 @@ bool ModelReduction::reduce(
   // 1. Reflected motor inertia mapping: M0 = M_robot + S^T * diag(J_m) * S
   out.M0 = M_robot + out.S.transpose() * J_m.asDiagonal() * out.S;
 
+  if (out.m == 0)
+  {
+    // Fixed-base robot or no external contact constraints:
+    // Contact null-space is the entire unconstrained joint space
+    out.rank = 0;
+    out.nr = out.N;
+    out.Z = Eigen::MatrixXd::Identity(out.N, out.nr);
+    out.Mc = out.M0;
+    out.A = out.S;
+
+    Eigen::LLT<Eigen::MatrixXd> llt(out.Mc);
+    if (llt.info() != Eigen::Success)
+    {
+      mc_rtc::log::warning("[PeakTorqueSensitivityInternal] Unconstrained mass matrix Mc Cholesky LLT decomposition failed!");
+      return false;
+    }
+
+    Eigen::MatrixXd Mc_inv = llt.solve(Eigen::MatrixXd::Identity(out.nr, out.nr));
+    out.Jm_A_Mc_inv = J_m.asDiagonal() * out.A * Mc_inv;
+    out.P_tau = Eigen::MatrixXd::Identity(out.n, out.n) - out.Jm_A_Mc_inv * out.A.transpose();
+    return true;
+  }
+
   // 2. SVD of contact Jacobian J_c: J_c = U * Sigma * V^T
   Eigen::JacobiSVD<Eigen::MatrixXd> svd(J_c, Eigen::ComputeFullV);
   svd.setThreshold(svd_threshold_);
